@@ -53,26 +53,8 @@ def get_target(filename: str) -> str:
         return ""
 
 def check_2fa_at_start(root_window) -> bool:
-    """
-    Check 2FA before starting the attack
-    """
-    user_input = simpledialog.askstring(
-        "2FA Required", 
-        "Enter password '123' to start attack:", 
-        parent=root_window
-    )
-
-    # Check if user cancelled
-    if user_input is None:
-        return False
-
-    # Check if correct password
-    if user_input == "123":
-        messagebox.showinfo("2FA Success", "Authentication successful! Starting attack...", parent=root_window)
-        return True
-    else:
-        messagebox.showerror("2FA Failed", "Wrong password! Attack cancelled.", parent=root_window)
-        return False
+    """Deprecated in desktop UI: 2FA removed for tkinter version."""
+    return True
 
 
 def user_Interface():
@@ -83,9 +65,8 @@ def user_Interface():
     frame = ctk.CTkFrame(master=root, width=500, height=500) #Sets a frame in the window to utalize a grid for label & button placement
     frame.place(relx=.5, rely=.5, anchor="center", bordermode = 'outside') #places the frame in the center of the window
 
-    #Creates a checkbox for 2FA option
-    twoFACheckbox = ctk.CTkCheckBox(frame, text="Enable 2FA", font=("Arial", 16), text_color="white")
-    twoFACheckbox.grid(column = 0, row = 0, pady = 5, padx = 10, columnspan = 2)
+    # 2FA removed in tkinter UI
+    twoFACheckbox = None
 
     #Creates a button called "Start Attack" and places it on the grid
     startAttackButton = ctk.CTkButton(frame, text="Start Attack", font=("Arial", 24), text_color="white", fg_color="black", width=20, command=lambda: start_attack_with_2fa(labels, twoFACheckbox, root))
@@ -113,16 +94,7 @@ def user_Interface():
 
 
 def start_attack_with_2fa(labels, twofa_checkbox, root_window) -> None:
-    """Handle 2FA check before starting attack"""
-    
-    # Check if 2FA is enabled
-    if twofa_checkbox.get():
-        # Perform 2FA check at the start
-        if not check_2fa_at_start(root_window):
-            labels[3].configure(text="Attack cancelled (2FA failed)")  # passwordDetectedLabel
-            return
-    
-    # Start the actual attack
+    """Start attack immediately (2FA removed for tkinter UI)."""
     main(labels, twofa_checkbox, root_window)
 
 def main(labels, twofa_checkbox, root_window) -> None:

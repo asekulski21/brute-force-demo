@@ -352,32 +352,39 @@ st.warning("⚠️ **EDUCATIONAL PURPOSE ONLY** - This tool is for learning abou
 
 # Simple configuration
 enable_2fa = st.checkbox("🔐 Enable 2FA Protection")
-
 if enable_2fa:
     st.info("🔒 You will need to enter password '123' before starting")
 
-# Initialize session state for 2FA
-if 'authenticated' not in st.session_state:
-    st.session_state.authenticated = False
+# Session state for 2FA/auth flow
+st.session_state.setdefault("attack_requested", False)
+st.session_state.setdefault("authenticated", False)
+st.session_state.setdefault("twofa_error", "")
 
-# Start attack button
+# Start button just flags the request to start
 if st.button("🎯 Start Brute Force Attack", type="primary"):
-    if enable_2fa and not st.session_state.authenticated:
-        # Show 2FA prompt
-        st.warning("🔐 **2FA Required**")
-        st.info("**Enter password '123' to start the attack**")
-        
-        password = st.text_input("Password:", type="password", key="auth_password")
-        
-        if st.button("Authenticate"):
-            if password == "123":
-                st.success("✅ Authentication successful!")
-                st.session_state.authenticated = True
-                st.rerun()  # Restart to begin attack
-            else:
-                st.error("❌ Wrong password! Enter '123'")
-    else:
-        # Either 2FA is disabled or user is authenticated - start attack
-        if enable_2fa:
-            st.session_state.authenticated = False  # Reset for next time
-        main(enable_2fa)
+    st.session_state.attack_requested = True
+    st.session_state.twofa_error = ""
+
+# If user requested an attack and 2FA is enabled but not authenticated, prompt now
+if st.session_state.attack_requested and enable_2fa and not st.session_state.authenticated:
+    st.warning("🔐 **2FA Required**")
+    st.info("Enter password '123' to start the attack")
+
+    twofa_input = st.text_input("Password:", type="password", key="twofa_input")
+    if st.button("Authenticate"):
+        if twofa_input == "123":
+            st.session_state.authenticated = True
+        else:
+            st.session_state.twofa_error = "Wrong password! Enter '123'"
+
+    if st.session_state.twofa_error:
+        st.error(st.session_state.twofa_error)
+
+# If attack was requested and (2FA passed or disabled), run the attack
+if st.session_state.attack_requested and (not enable_2fa or st.session_state.authenticated):
+    # Reset auth flags for next run after finishing
+    st.session_state.attack_requested = False
+    st.session_state.authenticated = False
+    st.session_state.twofa_error = ""
+    
+    main(enable_2fa)

@@ -261,50 +261,8 @@ def get_target(filename: str) -> str:
     return get_target_password()
 
 def perform_2fa() -> bool:
-    """Performs 2FA by generating a random 4-digit number and asking user to input it."""
-    
-    # Generate random 4-digit number and store in session state
-    if 'twofa_number' not in st.session_state:
-        st.session_state.twofa_number = random.randint(1000, 9999)
-    
-    random_number = st.session_state.twofa_number
-    
-    st.warning(f"🔐 **2FA Verification Required**")
-    st.info(f"Please enter this number: **{random_number}**")
-    
-    user_input = st.text_input("Enter the 4-digit number:", max_chars=4, key="twofa_input")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        if st.button("✅ Verify", key="verify_2fa"):
-            if user_input:
-                try:
-                    if int(user_input) == random_number:
-                        st.success("✅ 2FA verification successful!")
-                        # Clear session state
-                        del st.session_state.twofa_number
-                        if 'twofa_input' in st.session_state:
-                            del st.session_state.twofa_input
-                        return True
-                    else:
-                        st.error("❌ Incorrect number entered!")
-                        return False
-                except ValueError:
-                    st.error("❌ Please enter a valid number!")
-                    return False
-            else:
-                st.error("❌ Please enter the number!")
-                return False
-    
-    with col2:
-        if st.button("❌ Cancel", key="cancel_2fa"):
-            # Clear session state
-            if 'twofa_number' in st.session_state:
-                del st.session_state.twofa_number
-            return False
-    
-    return False
+    """Deprecated: 2FA during attack removed. Use pre-start auth in the UI instead."""
+    return True
 
 def run_brute_force_attack(enable_2fa: bool):
     """Main function to run the brute force attack simulation"""
@@ -347,15 +305,7 @@ def run_brute_force_attack(enable_2fa: bool):
         status_placeholder.write(f"🔍 **Trying password:** `{word}`")
         attempt_placeholder.write(f"📊 **Attempt #{attempt}** of {len(password_list_array)}")
         
-        # Check if 2FA is enabled - EXACT same logic as original  
-        if enable_2fa and attempt % 25 == 1:  # Check 2FA every 25 attempts
-            st.warning("🔒 2FA verification required to continue...")
-            
-            if not perform_2fa():
-                result_placeholder.error("❌ Attack cancelled (2FA verification failed)")
-                return
-            
-            st.success("✅ 2FA passed, continuing attack...")
+        # 2FA during attack removed; pre-start auth should be handled in UI
         
         # Check if password matches - EXACT same logic as original
         if word == target_word:
