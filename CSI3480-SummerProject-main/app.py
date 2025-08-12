@@ -269,56 +269,69 @@ def get_target(filename: str) -> str:
 
 
 def main(enable_2fa: bool):
-    """Main function to run the brute force attack simulation"""
-    
-    # Use embedded data
-    password_list_array = get_password_list()
-    target_word = get_target_password()
-    
+    """Stateful, step-by-step brute force where each attempt can require a password."""
+
+    # Initialize attack state
+    st.session_state.setdefault("attack_active", False)
+    st.session_state.setdefault("attempt_index", 0)
+    st.session_state.setdefault("start_time", 0.0)
+    st.session_state.setdefault("target_word", get_target_password())
+    st.session_state.setdefault("password_list", get_password_list())
+
+    password_list_array = st.session_state.password_list
+    target_word = st.session_state.target_word
+
     if not target_word:
         st.error("❌ Failed: No valid target password found.")
+        st.session_state.attack_active = False
         return
-    
     if len(password_list_array) == 0:
         st.error("❌ Failed: Password list is empty.")
+        st.session_state.attack_active = False
         return
-    
-    st.success(f"🎯 Target password loaded: `{target_word}`")
-    st.info(f"📋 Testing against {len(password_list_array)} passwords...")
-    
-    # Create placeholders for updating
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-    attempt_text = st.empty()
-    result_text = st.empty()
-    
-    start_time = time.time()
-    attempt = 0
-    found = False
-    
-    # Loop through passwords
-    for word in password_list_array:
-        attempt += 1
-        
-        # Update progress
-        progress = attempt / len(password_list_array)
-        progress_bar.progress(progress)
-        
-        # Update status
-        status_text.write(f"🔍 **Trying password:** `{word}`")
-        attempt_text.write(f"📊 **Attempt #{attempt}** of {len(password_list_array)}")
-        
 
-        
-        # Check if password matches
-        if word == target_word:
-            found = True
-            end_time = time.time()
-            elapsed_time = round(end_time - start_time, 2)
-            
-            result_text.success(f"🎉 **SUCCESS!** Password found: `{word}`")
+    total = len(password_list_array)
+    attempt = st.session_state.attempt_index + 1 if st.session_state.attempt_index < total else total
+
+    st.info(f"📋 Testing against {total} passwords...")
+
+    # Progress/status
+    progress = st.session_state.attempt_index / total
+    st.progress(progress)
+
+    # If attack finished previously
+    if st.session_state.attempt_index >= total:
+        elapsed_time = round(time.time() - st.session_state.start_time, 2)
+        st.error("❌ **FAILED:** Password not found in common password list")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Result", "Not Found")
+        with col2:
+            st.metric("Time", f"{elapsed_time}s")
+        st.session_state.attack_active = False
+        return
+
+    current_word = password_list_array[st.session_state.attempt_index]
+    st.write(f"🔍 **Next attempt:** `{current_word}` (#{attempt} of {total})")
+
+    # One-attempt form: when submitted, we process exactly one attempt
+    form_key = f"attempt_form_{st.session_state.attempt_index}"
+    with st.form(form_key, clear_on_submit=True):
+        user_pass = None
+        if enable_2fa:
+            user_pass = st.text_input("Enter password '123' to run this attempt:", type="password")
+        submitted = st.form_submit_button("Run this attempt")
+
+    if submitted:
+        if enable_2fa and user_pass != "123":
+            st.error("❌ Wrong password. Enter '123' to proceed.")
+            return
+
+        # Process the attempt
+        if current_word == target_word:
+            elapsed_time = round(time.time() - st.session_state.start_time, 2)
+            st.success(f"🎉 **SUCCESS!** Password found: `{current_word}`")
             st.balloons()
-            
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric("Result", "Found")
@@ -326,23 +339,13 @@ def main(enable_2fa: bool):
                 st.metric("Attempts", attempt)
             with col3:
                 st.metric("Time", f"{elapsed_time}s")
-            
-            break
-        
-        # Small delay for visual effect
-        time.sleep(0.05)
-    
-    # If not found
-    if not found:
-        end_time = time.time()
-        elapsed_time = round(end_time - start_time, 2)
-        result_text.error("❌ **FAILED:** Password not found in common password list")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Result", "Not Found")
-        with col2:
-            st.metric("Time", f"{elapsed_time}s")
+            # Reset attack
+            st.session_state.attack_active = False
+            return
+        else:
+            # Advance to next attempt
+            st.session_state.attempt_index += 1
+            st.rerun()
 
 # Streamlit UI
 st.set_page_config(page_title="Brute Force Demo", page_icon="🔓")
@@ -355,10 +358,11 @@ enable_2fa = st.checkbox("🔐 Enable 2FA Protection")
 if enable_2fa:
     st.info("🔒 You will need to enter password '123' before starting")
 
-# Session state for 2FA/auth flow
+# Session state for flow
 st.session_state.setdefault("attack_requested", False)
 st.session_state.setdefault("authenticated", False)
 st.session_state.setdefault("twofa_error", "")
+st.session_state.setdefault("attack_started", False)
 
 # Start button just flags the request to start
 if st.button("🎯 Start Brute Force Attack", type="primary"):
@@ -382,9 +386,11 @@ if st.session_state.attack_requested and enable_2fa and not st.session_state.aut
 
 # If attack was requested and (2FA passed or disabled), run the attack
 if st.session_state.attack_requested and (not enable_2fa or st.session_state.authenticated):
-    # Reset auth flags for next run after finishing
-    st.session_state.attack_requested = False
-    st.session_state.authenticated = False
-    st.session_state.twofa_error = ""
+    # Start or continue the step-by-step attack
+    if not st.session_state.attack_started:
+        # Initialize attack state
+        st.session_state.attack_started = True
+        st.session_state.start_time = time.time()
+        st.session_state.attempt_index = 0
     
     main(enable_2fa)
