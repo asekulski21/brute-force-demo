@@ -52,15 +52,13 @@ def get_target(filename: str) -> str:
         print(f"An error occured: {e}")
         return ""
 
-def perform_2fa(root_window) -> bool:
+def check_2fa_at_start(root_window) -> bool:
     """
-    Super simple 2FA - just enter '123' to continue
+    Check 2FA before starting the attack
     """
-
-    # Ask user to input the password
     user_input = simpledialog.askstring(
         "2FA Required", 
-        "Enter password '123' to continue:", 
+        "Enter password '123' to start attack:", 
         parent=root_window
     )
 
@@ -70,10 +68,10 @@ def perform_2fa(root_window) -> bool:
 
     # Check if correct password
     if user_input == "123":
-        messagebox.showinfo("2FA Success", "Correct password!", parent=root_window)
+        messagebox.showinfo("2FA Success", "Authentication successful! Starting attack...", parent=root_window)
         return True
     else:
-        messagebox.showerror("2FA Failed", "Wrong password! Enter '123'", parent=root_window)
+        messagebox.showerror("2FA Failed", "Wrong password! Attack cancelled.", parent=root_window)
         return False
 
 
@@ -90,7 +88,7 @@ def user_Interface():
     twoFACheckbox.grid(column = 0, row = 0, pady = 5, padx = 10, columnspan = 2)
 
     #Creates a button called "Start Attack" and places it on the grid
-    startAttackButton = ctk.CTkButton(frame, text="Start Attack", font=("Arial", 24), text_color="white", fg_color="black", width=20, command=lambda: main(labels, twoFACheckbox, root))
+    startAttackButton = ctk.CTkButton(frame, text="Start Attack", font=("Arial", 24), text_color="white", fg_color="black", width=20, command=lambda: start_attack_with_2fa(labels, twoFACheckbox, root))
     startAttackButton.grid(column = 0, row = 1, pady = 15, padx = 10, columnspan = 2)
 
     #Creates a label called "attemptNumber" and places it on the grid. Will be updated with the current attempt number.
@@ -113,6 +111,19 @@ def user_Interface():
 
     root.mainloop() #Runs the user interface
 
+
+def start_attack_with_2fa(labels, twofa_checkbox, root_window) -> None:
+    """Handle 2FA check before starting attack"""
+    
+    # Check if 2FA is enabled
+    if twofa_checkbox.get():
+        # Perform 2FA check at the start
+        if not check_2fa_at_start(root_window):
+            labels[3].configure(text="Attack cancelled (2FA failed)")  # passwordDetectedLabel
+            return
+    
+    # Start the actual attack
+    main(labels, twofa_checkbox, root_window)
 
 def main(labels, twofa_checkbox, root_window) -> None:
     start_time = time.time() # Start program run timer
@@ -143,14 +154,7 @@ def main(labels, twofa_checkbox, root_window) -> None:
             
             root_window.update()  # Refresh UI to show current attempt
 
-            # Check if 2FA is enabled - every single attempt
-            if twofa_checkbox.get():
-                print("2FA enabled - requesting verification...")
 
-                if not perform_2fa(root_window):
-                    print("2FA verification failed or cancelled. Stopping attack.")
-                    passwordDetectedLabel.configure(text="Attack cancelled (2FA failed)")
-                    return
 
             if word == target_word:
                 print(f"\nSuccess, the password word was: \"{word}\"")

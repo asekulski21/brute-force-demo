@@ -266,28 +266,7 @@ def get_target(filename: str) -> str:
     """Legacy function - now returns embedded data"""
     return get_target_password()
 
-def perform_2fa() -> bool:
-    """Super simple 2FA - just enter '123' to continue"""
-    
-    st.warning("🔐 **2FA Required**")
-    st.info("**Enter the password '123' to continue**")
-    
-    # Use session state to track 2FA input
-    if 'twofa_input' not in st.session_state:
-        st.session_state.twofa_input = ""
-    
-    user_input = st.text_input("Password:", value=st.session_state.twofa_input, key="twofa_password")
-    
-    if st.button("Continue"):
-        if user_input == "123":
-            st.success("✅ Correct password!")
-            st.session_state.twofa_input = ""  # Clear input
-            return True
-        else:
-            st.error("❌ Wrong password! Enter '123'")
-            return False
-    
-    return False
+
 
 def main(enable_2fa: bool):
     """Main function to run the brute force attack simulation"""
@@ -329,11 +308,7 @@ def main(enable_2fa: bool):
         status_text.write(f"🔍 **Trying password:** `{word}`")
         attempt_text.write(f"📊 **Attempt #{attempt}** of {len(password_list_array)}")
         
-        # Check if 2FA is enabled - every single attempt
-        if enable_2fa:
-            if not perform_2fa():
-                result_text.error("❌ Attack stopped - 2FA verification failed")
-                return
+
         
         # Check if password matches
         if word == target_word:
@@ -379,8 +354,30 @@ st.warning("⚠️ **EDUCATIONAL PURPOSE ONLY** - This tool is for learning abou
 enable_2fa = st.checkbox("🔐 Enable 2FA Protection")
 
 if enable_2fa:
-    st.info("🔒 2FA verification will be required every 25 password attempts")
+    st.info("🔒 You will need to enter password '123' before starting")
+
+# Initialize session state for 2FA
+if 'authenticated' not in st.session_state:
+    st.session_state.authenticated = False
 
 # Start attack button
 if st.button("🎯 Start Brute Force Attack", type="primary"):
-    main(enable_2fa)
+    if enable_2fa and not st.session_state.authenticated:
+        # Show 2FA prompt
+        st.warning("🔐 **2FA Required**")
+        st.info("**Enter password '123' to start the attack**")
+        
+        password = st.text_input("Password:", type="password", key="auth_password")
+        
+        if st.button("Authenticate"):
+            if password == "123":
+                st.success("✅ Authentication successful!")
+                st.session_state.authenticated = True
+                st.rerun()  # Restart to begin attack
+            else:
+                st.error("❌ Wrong password! Enter '123'")
+    else:
+        # Either 2FA is disabled or user is authenticated - start attack
+        if enable_2fa:
+            st.session_state.authenticated = False  # Reset for next time
+        main(enable_2fa)
