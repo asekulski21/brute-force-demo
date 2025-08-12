@@ -355,14 +355,7 @@ def main():
     
     # Header
     st.title("🔓 Brute Force Attack Simulator")
-    
-    # Educational disclaimer
-    st.warning("""
-    ⚠️ **EDUCATIONAL PURPOSE ONLY**
-    
-    This application demonstrates password security concepts for learning purposes only. 
-    Do not use this tool for unauthorized access attempts.
-    """)
+
     
     # Team info
     with st.expander("👥 Project Team"):
