@@ -269,83 +269,136 @@ def get_target(filename: str) -> str:
 
 
 def main(enable_2fa: bool):
-    """Stateful, step-by-step brute force where each attempt can require a password."""
+    """Run brute force attack - automatic if 2FA disabled, step-by-step if enabled."""
 
-    # Initialize attack state
-    st.session_state.setdefault("attack_active", False)
-    st.session_state.setdefault("attempt_index", 0)
-    st.session_state.setdefault("start_time", 0.0)
-    st.session_state.setdefault("target_word", get_target_password())
-    st.session_state.setdefault("password_list", get_password_list())
-
-    password_list_array = st.session_state.password_list
-    target_word = st.session_state.target_word
+    password_list_array = get_password_list()
+    target_word = get_target_password()
 
     if not target_word:
         st.error("❌ Failed: No valid target password found.")
-        st.session_state.attack_active = False
         return
     if len(password_list_array) == 0:
         st.error("❌ Failed: Password list is empty.")
-        st.session_state.attack_active = False
         return
 
-    total = len(password_list_array)
-    attempt = st.session_state.attempt_index + 1 if st.session_state.attempt_index < total else total
-
-    st.info(f"📋 Testing against {total} passwords...")
-
-    # Progress/status
-    progress = st.session_state.attempt_index / total
-    st.progress(progress)
-
-    # If attack finished previously
-    if st.session_state.attempt_index >= total:
-        elapsed_time = round(time.time() - st.session_state.start_time, 2)
-        st.error("❌ **FAILED:** Password not found in common password list")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Result", "Not Found")
-        with col2:
-            st.metric("Time", f"{elapsed_time}s")
-        st.session_state.attack_active = False
-        return
-
-    current_word = password_list_array[st.session_state.attempt_index]
-    st.write(f"🔍 **Next attempt:** `{current_word}` (#{attempt} of {total})")
-
-    # One-attempt form: when submitted, we process exactly one attempt
-    form_key = f"attempt_form_{st.session_state.attempt_index}"
-    with st.form(form_key, clear_on_submit=True):
-        user_pass = None
-        if enable_2fa:
-            user_pass = st.text_input("Enter password '123' to run this attempt:", type="password")
-        submitted = st.form_submit_button("Run this attempt")
-
-    if submitted:
-        if enable_2fa and user_pass != "123":
-            st.error("❌ Wrong password. Enter '123' to proceed.")
-            return
-
-        # Process the attempt
-        if current_word == target_word:
-            elapsed_time = round(time.time() - st.session_state.start_time, 2)
-            st.success(f"🎉 **SUCCESS!** Password found: `{current_word}`")
-            st.balloons()
-            col1, col2, col3 = st.columns(3)
+    if not enable_2fa:
+        # Original automatic mode - no 2FA
+        st.success(f"🎯 Target password loaded: `{target_word}`")
+        st.info(f"📋 Testing against {len(password_list_array)} passwords...")
+        
+        # Create placeholders for updating
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        attempt_text = st.empty()
+        result_text = st.empty()
+        
+        start_time = time.time()
+        attempt = 0
+        found = False
+        
+        # Loop through passwords automatically
+        for word in password_list_array:
+            attempt += 1
+            
+            # Update progress
+            progress = attempt / len(password_list_array)
+            progress_bar.progress(progress)
+            
+            # Update status
+            status_text.write(f"🔍 **Trying password:** `{word}`")
+            attempt_text.write(f"📊 **Attempt #{attempt}** of {len(password_list_array)}")
+            
+            # Check if password matches
+            if word == target_word:
+                found = True
+                end_time = time.time()
+                elapsed_time = round(end_time - start_time, 2)
+                
+                result_text.success(f"🎉 **SUCCESS!** Password found: `{word}`")
+                st.balloons()
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Result", "Found")
+                with col2:
+                    st.metric("Attempts", attempt)
+                with col3:
+                    st.metric("Time", f"{elapsed_time}s")
+                
+                break
+            
+            # Small delay for visual effect
+            time.sleep(0.05)
+        
+        # If not found
+        if not found:
+            end_time = time.time()
+            elapsed_time = round(end_time - start_time, 2)
+            result_text.error("❌ **FAILED:** Password not found in common password list")
+            
+            col1, col2 = st.columns(2)
             with col1:
-                st.metric("Result", "Found")
+                st.metric("Result", "Not Found")
             with col2:
-                st.metric("Attempts", attempt)
-            with col3:
                 st.metric("Time", f"{elapsed_time}s")
-            # Reset attack
-            st.session_state.attack_active = False
+    
+    else:
+        # 2FA enabled - step-by-step mode
+        # Initialize attack state
+        st.session_state.setdefault("attempt_index", 0)
+        st.session_state.setdefault("start_time", time.time())
+
+        total = len(password_list_array)
+        attempt = st.session_state.attempt_index + 1 if st.session_state.attempt_index < total else total
+
+        st.info(f"📋 Testing against {total} passwords...")
+
+        # Progress/status
+        progress = st.session_state.attempt_index / total
+        st.progress(progress)
+
+        # If attack finished previously
+        if st.session_state.attempt_index >= total:
+            elapsed_time = round(time.time() - st.session_state.start_time, 2)
+            st.error("❌ **FAILED:** Password not found in common password list")
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Result", "Not Found")
+            with col2:
+                st.metric("Time", f"{elapsed_time}s")
             return
-        else:
-            # Advance to next attempt
-            st.session_state.attempt_index += 1
-            st.rerun()
+
+        current_word = password_list_array[st.session_state.attempt_index]
+        st.write(f"🔍 **Next attempt:** `{current_word}` (#{attempt} of {total})")
+
+        # One-attempt form: when submitted, we process exactly one attempt
+        form_key = f"attempt_form_{st.session_state.attempt_index}"
+        with st.form(form_key, clear_on_submit=True):
+            user_pass = st.text_input("Enter password '123' to run this attempt:", type="password")
+            submitted = st.form_submit_button("Run this attempt")
+
+        if submitted:
+            if user_pass != "123":
+                st.error("❌ Wrong password. Enter '123' to proceed.")
+                return
+
+            # Process the attempt
+            if current_word == target_word:
+                elapsed_time = round(time.time() - st.session_state.start_time, 2)
+                st.success(f"🎉 **SUCCESS!** Password found: `{current_word}`")
+                st.balloons()
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Result", "Found")
+                with col2:
+                    st.metric("Attempts", attempt)
+                with col3:
+                    st.metric("Time", f"{elapsed_time}s")
+                return
+            else:
+                # Advance to next attempt
+                st.session_state.attempt_index += 1
+                st.rerun()
 
 # Streamlit UI
 st.set_page_config(page_title="Brute Force Demo", page_icon="🔓")
