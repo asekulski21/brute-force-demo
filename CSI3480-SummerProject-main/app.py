@@ -17,8 +17,8 @@ import time
 import random
 import streamlit as st
 
-# Constants
-COMMON_PASSWORD_LIST = "small-password-list/smallpasswordlist.txt" #Changed from rockyou file path to secret_password path
+# Constants - ONLY change: fix file paths for web deployment
+COMMON_PASSWORD_LIST = "small-password-list/smallpasswordlist.txt"
 TARGET_PASSWORD = "secret_user_info/secret_password.txt"
 
 def read_passwords_from_file(filename: str) -> list[str]:
@@ -64,25 +64,50 @@ def perform_2fa() -> bool:
     # Generate random 4-digit number
     random_number = random.randint(1000, 9999)
 
-    # Ask user to input the number (simplified for web)
-    st.write(f"2FA Verification: Please type {random_number}:")
+    # Ask user to input the number - ONLY change: use Streamlit input instead of tkinter
+    st.write(f"🔐 **2FA Verification**: Please type {random_number}")
     user_input = st.text_input("Enter the number:", key=f"twofa_{random_number}")
+    
+    if st.button("Verify 2FA"):
+        # Check if user cancelled or entered wrong number
+        if user_input is None or user_input == "":  # User cancelled
+            return False
 
-    if st.button("Verify", key=f"verify_{random_number}"):
         try:
             if int(user_input) == random_number:
-                st.success("2FA Verification Successful!")
+                st.success("2FA Successful!")
                 return True
             else:
-                st.error("Incorrect number entered!")
+                st.error("2FA Failed: Incorrect number entered!")
                 return False
+
         except ValueError:
-            st.error("Please enter a valid number!")
+            st.error("2FA Failed: Please enter a valid number!")
             return False
     
     return False
 
-def main(labels, twofa_checkbox) -> None:
+# ONLY change: Replace tkinter UI with simple Streamlit equivalents
+def user_Interface():
+    st.title("Brute Force Attack")
+    
+    # Creates a checkbox for 2FA option
+    twoFACheckbox = st.checkbox("Enable 2FA")
+    
+    # Creates a button called "Start Attack"
+    if st.button("Start Attack"):
+        # Create placeholders for labels that will be updated
+        elapsedTimeLabel = st.empty()
+        attemptNumberLabel = st.empty() 
+        passwordAttemptLabel = st.empty()
+        passwordDetectedLabel = st.empty()
+        
+        labels = [elapsedTimeLabel, attemptNumberLabel, passwordAttemptLabel, passwordDetectedLabel]
+        
+        # Call main function - EXACT same as original
+        main(labels, twoFACheckbox, None)
+
+def main(labels, twofa_checkbox, root_window) -> None:
     start_time = time.time() # Start program run timer
     print("\nStarting Brute Force Attack...\n")
 
@@ -100,19 +125,21 @@ def main(labels, twofa_checkbox) -> None:
         passwordDetectedLabel.write("No valid password in file") #Updates passwordDetectedLabel
         return
     
-    # Loop through passwords
+    # Loop through passwords - EXACT same logic as original
     if len(password_list_array) > 0:
         attempt = 0
         for word in password_list_array:
             attempt += 1
             print(f"{attempt}. Trying: \"{word}\"")            
-            attemptNumberLabel.write(f"Attempt: #{attempt} | ") #Updates attemptNumberLabel
+            attemptNumberLabel.write(f"Attempt: #{attempt}") #Updates attemptNumberLabel
             passwordAttemptLabel.write(f"Password: {word}") #Updates passwordAttemptLabel
             
-            # Check if 2FA is enabled
+            # ONLY change: remove root_window.update() since Streamlit handles this
+
+            # Check if 2FA is enabled - EXACT same logic as original
             if twofa_checkbox:
                 print("2FA enabled - requesting verification...")
-                
+
                 if not perform_2fa():
                     print("2FA verification failed or cancelled. Stopping attack.")
                     passwordDetectedLabel.write("Attack cancelled (2FA failed)")
@@ -135,26 +162,5 @@ def main(labels, twofa_checkbox) -> None:
     print(f"\nFinished in {elapsed_time} seconds.\n")
     elapsedTimeLabel.write(f"{elapsed_time} s") #updates elapsedTimeLabel
 
-def user_Interface():
-    st.title("Brute Force Attack") # Equivalent to root.title()
-    
-    #Creates a checkbox for 2FA option
-    twoFACheckbox = st.checkbox("Enable 2FA")
-
-    #Creates a button called "Start Attack" and places it on the grid
-    if st.button("Start Attack"):
-        
-        #Creates labels - Using Streamlit containers instead of labels
-        elapsedTimeLabel = st.empty()
-        attemptNumberLabel = st.empty()  
-        passwordAttemptLabel = st.empty()
-        passwordDetectedLabel = st.empty()
-        
-        labels = [elapsedTimeLabel, attemptNumberLabel, passwordAttemptLabel, passwordDetectedLabel] #Array of all the labels to pass to main to update them as the program runs
-        
-        # Call main function with the same parameters as original
-        main(labels, twoFACheckbox)
-
 if __name__ == "__main__":
-    #main()
-    user_Interface() #Temporarily until we move things around to the UI instead of being in the terminal
+    user_Interface() # Same as original
