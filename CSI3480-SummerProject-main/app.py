@@ -1,16 +1,25 @@
 #!/usr/bin/env python3
 
 """
-Project Name: Brute Force Demo Project  
+Project Name: Brute Force Demo Project
 Description: Simulates a brute force attack to guess a password
 Author: Andrae Taylor, Christina Carvalho, Alexander Sekulski
 Date: 7/24/2025
 """
 
+"""
+The "rockyou.txt" file is a big text file of most commonly used passwords and it's used
+in a lot of official places.
+But it's a big file (100MB) and GitHub only allows 25MB upload so a lot had to be deleted.
+"""
+
 import time
 import random
 import streamlit as st
-import os
+
+# Constants
+COMMON_PASSWORD_LIST = "small-password-list/smallpasswordlist.txt"
+TARGET_PASSWORD = "secret_user_info/secret_password.txt"
 
 def get_password_list() -> list[str]:
     """Get the common password list - embedded for web deployment"""
@@ -254,37 +263,12 @@ def get_target_password() -> str:
     return "meadow408"
 
 def read_passwords_from_file(filename: str) -> list[str]:
-    """Read all the words in the text file and adds it to the array for testing."""
-    try:
-        # "rockyou.txt" uses latin-1 encoding so it has to be specified.
-        with open(filename, "r", encoding="latin-1") as file:
-            return [line.strip() for line in file]
-    
-    except FileNotFoundError:
-        st.error(f"Error: File '{filename}' not found!")
-        return []
-    except Exception as e:
-        st.error(f"An error occurred: {e}")
-        return []
+    """Legacy function - now returns embedded data"""
+    return get_password_list()
 
 def get_target(filename: str) -> str:
-    """Get the target word from the secret file"""
-    try:
-        with open(filename, "r") as file:
-            word = file.readline().strip()
-            
-            if word:  # If the word isn't null/empty
-                return word
-            else:
-                st.error(f"Error: File '{filename}' is empty!")
-                return ""
-    
-    except FileNotFoundError:
-        st.error(f"Error: File '{filename}' not found!")
-        return ""
-    except Exception as e:
-        st.error(f"An error occurred: {e}")
-        return ""
+    """Legacy function - now returns embedded data"""
+    return get_target_password()
 
 def perform_2fa() -> bool:
     """Performs 2FA by generating a random 4-digit number and asking user to input it."""
@@ -332,10 +316,10 @@ def perform_2fa() -> bool:
     
     return False
 
-def run_brute_force_attack(enable_2fa: bool):
+def main(enable_2fa: bool):
     """Main function to run the brute force attack simulation"""
     
-    # Use embedded data instead of files
+    # Use embedded data
     password_list_array = get_password_list()
     target_word = get_target_password()
     
@@ -347,21 +331,20 @@ def run_brute_force_attack(enable_2fa: bool):
         st.error("❌ Failed: Password list is empty.")
         return
     
-    # Show attack info
-    st.success(f"🎯 Target password loaded successfully!")
-    st.info(f"📋 Testing against {len(password_list_array)} common passwords...")
+    st.success(f"🎯 Target password loaded: `{target_word}`")
+    st.info(f"📋 Testing against {len(password_list_array)} passwords...")
     
-    # Create progress tracking
+    # Create placeholders for updating
     progress_bar = st.progress(0)
-    status_placeholder = st.empty()
-    attempt_placeholder = st.empty()
-    result_placeholder = st.empty()
+    status_text = st.empty()
+    attempt_text = st.empty()
+    result_text = st.empty()
     
     start_time = time.time()
     attempt = 0
     found = False
     
-    # Loop through passwords - EXACT same logic as original
+    # Loop through passwords
     for word in password_list_array:
         attempt += 1
         
@@ -370,126 +353,65 @@ def run_brute_force_attack(enable_2fa: bool):
         progress_bar.progress(progress)
         
         # Update status
-        status_placeholder.write(f"🔍 **Trying password:** `{word}`")
-        attempt_placeholder.write(f"📊 **Attempt #{attempt}** of {len(password_list_array)}")
+        status_text.write(f"🔍 **Trying password:** `{word}`")
+        attempt_text.write(f"📊 **Attempt #{attempt}** of {len(password_list_array)}")
         
-        # Check if 2FA is enabled - EXACT same logic as original  
-        if enable_2fa and attempt % 25 == 1:  # Check 2FA every 25 attempts
+        # Check if 2FA is enabled - every 25 attempts
+        if enable_2fa and attempt % 25 == 1:
             st.warning("🔒 2FA verification required to continue...")
             
             if not perform_2fa():
-                result_placeholder.error("❌ Attack cancelled (2FA verification failed)")
+                result_text.error("❌ Attack cancelled (2FA verification failed)")
                 return
             
             st.success("✅ 2FA passed, continuing attack...")
         
-        # Check if password matches - EXACT same logic as original
+        # Check if password matches
         if word == target_word:
             found = True
             end_time = time.time()
             elapsed_time = round(end_time - start_time, 2)
             
-            # Success display
-            result_placeholder.success(f"🎉 **SUCCESS!** Password found: `{word}`")
+            result_text.success(f"🎉 **SUCCESS!** Password found: `{word}`")
             st.balloons()
             
-            # Show statistics
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("✅ Result", "Found")
+                st.metric("Result", "Found")
             with col2:
-                st.metric("🔢 Attempts", attempt)
+                st.metric("Attempts", attempt)
             with col3:
-                st.metric("⏱️ Time", f"{elapsed_time}s")
+                st.metric("Time", f"{elapsed_time}s")
             
             break
         
         # Small delay for visual effect
         time.sleep(0.05)
     
-    # If not found - EXACT same logic as original
+    # If not found
     if not found:
         end_time = time.time()
         elapsed_time = round(end_time - start_time, 2)
-        
-        result_placeholder.error("❌ **FAILED:** Password not found in common password list")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("❌ Result", "Not Found")
-        with col2:
-            st.metric("⏱️ Time", f"{elapsed_time}s")
-
-# Main Streamlit app
-def main():
-    # Page configuration
-    st.set_page_config(
-        page_title="Brute Force Demo",
-        page_icon="🔓",
-        layout="centered"
-    )
-    
-    # Header
-    st.title("🔓 Brute Force Attack Simulator")
-    
-    # Educational disclaimer
-    st.warning("""
-    ⚠️ **EDUCATIONAL PURPOSE ONLY**
-    
-    This application demonstrates password security concepts for learning purposes only. 
-    Do not use this tool for unauthorized access attempts.
-    """)
-    
-    # Team info
-    with st.expander("👥 Project Team"):
-        st.write("**Authors:** Andrae Taylor, Christina Carvalho, Alexander Sekulski")
-        st.write("**Course:** CSI3480 Summer Project")
-        st.write("**Date:** July 24, 2025")
-    
-    # File status check
-    with st.expander("📁 System Status"):
-        target_password = get_target_password()
-        password_list = get_password_list()
+        result_text.error("❌ **FAILED:** Password not found in common password list")
         
         col1, col2 = st.columns(2)
         with col1:
-            if target_password:
-                st.success("✅ Target password loaded")
-                st.info(f"🎯 Target: `{target_password}`")
-            else:
-                st.error("❌ Target password missing")
-        
+            st.metric("Result", "Not Found")
         with col2:
-            if password_list:
-                st.success("✅ Password list loaded")
-                st.info(f"📋 Contains {len(password_list)} passwords")
-            else:
-                st.error("❌ Password list missing")
-    
-    st.divider()
-    
-    # Attack configuration
-    st.subheader("⚙️ Attack Configuration")
-    
-    enable_2fa = st.checkbox(
-        "🔐 Enable 2FA Protection", 
-        help="When enabled, you'll need to verify your identity during the attack simulation"
-    )
-    
-    if enable_2fa:
-        st.info("🔒 2FA verification will be required every 25 password attempts")
-    
-    st.divider()
-    
-    # Attack button
-    if st.button("🎯 Start Brute Force Attack", type="primary", use_container_width=True):
-        target_password = get_target_password()
-        password_list = get_password_list()
-        
-        if not target_password or not password_list:
-            st.error("❌ Cannot start attack: Required data is missing")
-        else:
-            run_brute_force_attack(enable_2fa)
+            st.metric("Time", f"{elapsed_time}s")
 
-if __name__ == "__main__":
-    main()
+# Streamlit UI
+st.set_page_config(page_title="Brute Force Demo", page_icon="🔓")
+st.title("🔓 Brute Force Attack Simulator")
+
+st.warning("⚠️ **EDUCATIONAL PURPOSE ONLY** - This tool is for learning about password security.")
+
+# Simple configuration
+enable_2fa = st.checkbox("🔐 Enable 2FA Protection")
+
+if enable_2fa:
+    st.info("🔒 2FA verification will be required every 25 password attempts")
+
+# Start attack button
+if st.button("🎯 Start Brute Force Attack", type="primary"):
+    main(enable_2fa)
