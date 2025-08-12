@@ -7,11 +7,7 @@ Author: Andrae Taylor, Christina Carvalho, Alexander Sekulski
 Date: 7/24/2025
 """
 
-"""
-The "rockyou.txt" file is a big text file of most commonly used passwords and it's used
-in a lot of official places.
-But it's a big file (100MB) and GitHub only allows 25MB upload so a lot had to be deleted.
-"""
+
 
 import time
 import random
@@ -58,39 +54,26 @@ def get_target(filename: str) -> str:
 
 def perform_2fa(root_window) -> bool:
     """
-    Performs 2FA by generating a random 4-digit number and asking user to input it.
-    Returns True if user enters correct number, False if they cancel or enter wrong number.
+    Super simple 2FA - just enter '123' to continue
     """
 
-    # Generate random 4-digit number
-    random_number = random.randint(1000, 9999)
-
-    # Ask user to input the number
+    # Ask user to input the password
     user_input = simpledialog.askstring(
-        "2FA Verification", 
-        f"Please type {random_number}:", 
+        "2FA Required", 
+        "Enter password '123' to continue:", 
         parent=root_window
     )
 
-    # Check if user cancelled or entered wrong number
-    if user_input is None:  # User cancelled
+    # Check if user cancelled
+    if user_input is None:
         return False
 
-    # Check if user entered empty string
-    if user_input.strip() == "":
-        messagebox.showerror("2FA Failed", "Please enter a valid number!", parent=root_window)
-        return False
-
-    try:
-        if int(user_input.strip()) == random_number:
-            messagebox.showinfo("2FA Success", "2FA verification successful!", parent=root_window)
-            return True
-        else:
-            messagebox.showerror("2FA Failed", "Incorrect number entered!", parent=root_window)
-            return False
-
-    except ValueError:
-        messagebox.showerror("2FA Failed", "Please enter a valid number!", parent=root_window)
+    # Check if correct password
+    if user_input == "123":
+        messagebox.showinfo("2FA Success", "Correct password!", parent=root_window)
+        return True
+    else:
+        messagebox.showerror("2FA Failed", "Wrong password! Enter '123'", parent=root_window)
         return False
 
 
@@ -160,17 +143,14 @@ def main(labels, twofa_checkbox, root_window) -> None:
             
             root_window.update()  # Refresh UI to show current attempt
 
-            # Check if 2FA is enabled - only every 25 attempts
-            if twofa_checkbox.get() and attempt % 25 == 1:
+            # Check if 2FA is enabled - every single attempt
+            if twofa_checkbox.get():
                 print("2FA enabled - requesting verification...")
 
                 if not perform_2fa(root_window):
                     print("2FA verification failed or cancelled. Stopping attack.")
                     passwordDetectedLabel.configure(text="Attack cancelled (2FA failed)")
                     return
-                
-                print("2FA verification passed - continuing attack...")
-                time.sleep(0.5)  # Small delay after 2FA verification
 
             if word == target_word:
                 print(f"\nSuccess, the password word was: \"{word}\"")

@@ -7,11 +7,7 @@ Author: Andrae Taylor, Christina Carvalho, Alexander Sekulski
 Date: 7/24/2025
 """
 
-"""
-The "rockyou.txt" file is a big text file of most commonly used passwords and it's used
-in a lot of official places.
-But it's a big file (100MB) and GitHub only allows 25MB upload so a lot had to be deleted.
-"""
+
 
 import time
 import random
@@ -271,35 +267,25 @@ def get_target(filename: str) -> str:
     return get_target_password()
 
 def perform_2fa() -> bool:
-    """Simple 2FA verification - just enter the displayed number"""
+    """Super simple 2FA - just enter '123' to continue"""
     
-    # Generate a simple 3-digit number for easier verification
-    random_number = random.randint(100, 999)
+    st.warning("🔐 **2FA Required**")
+    st.info("**Enter the password '123' to continue**")
     
-    st.warning(f"🔐 **2FA Required**")
-    st.info(f"**Enter this number to continue: {random_number}**")
+    # Use session state to track 2FA input
+    if 'twofa_input' not in st.session_state:
+        st.session_state.twofa_input = ""
     
-    # Simple form with auto-submit on Enter
-    with st.form("2fa_form", clear_on_submit=True):
-        user_input = st.text_input("Type the number above:", max_chars=3, placeholder="Enter 3-digit number")
-        submitted = st.form_submit_button("Continue")
-        
-        if submitted:
-            if user_input.strip():
-                try:
-                    if int(user_input.strip()) == random_number:
-                        st.success("✅ Verification successful!")
-                        time.sleep(1)  # Brief pause to show success
-                        return True
-                    else:
-                        st.error("❌ Wrong number! Try again.")
-                        return False
-                except ValueError:
-                    st.error("❌ Please enter a valid number!")
-                    return False
-            else:
-                st.error("❌ Please enter the number!")
-                return False
+    user_input = st.text_input("Password:", value=st.session_state.twofa_input, key="twofa_password")
+    
+    if st.button("Continue"):
+        if user_input == "123":
+            st.success("✅ Correct password!")
+            st.session_state.twofa_input = ""  # Clear input
+            return True
+        else:
+            st.error("❌ Wrong password! Enter '123'")
+            return False
     
     return False
 
@@ -343,16 +329,11 @@ def main(enable_2fa: bool):
         status_text.write(f"🔍 **Trying password:** `{word}`")
         attempt_text.write(f"📊 **Attempt #{attempt}** of {len(password_list_array)}")
         
-        # Check if 2FA is enabled - every 25 attempts
-        if enable_2fa and attempt % 25 == 1:
-            st.info("🔒 **2FA Check Required**")
-            
+        # Check if 2FA is enabled - every single attempt
+        if enable_2fa:
             if not perform_2fa():
                 result_text.error("❌ Attack stopped - 2FA verification failed")
                 return
-            
-            # Continue attack after successful 2FA
-            st.rerun()  # Refresh to continue the loop
         
         # Check if password matches
         if word == target_word:
