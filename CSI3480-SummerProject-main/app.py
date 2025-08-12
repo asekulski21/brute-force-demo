@@ -127,7 +127,7 @@ def run_brute_force_attack(enable_2fa: bool):
     """Main function to run the brute force attack simulation"""
     
     # Use embedded data instead of files
-    password_list_array = get_password_list()
+    password_list_array = read_passwords_from_file("small-password-list/smallpasswordlist.txt")
     target_word = get_target_password()
     
     if not target_word:
@@ -240,7 +240,7 @@ def main():
     # File status check
     with st.expander("📁 System Status"):
         target_password = get_target_password()
-        password_list = get_password_list()
+        password_list = read_passwords_from_file("small-password-list/smallpasswordlist.txt")
         
         col1, col2 = st.columns(2)
         with col1:
@@ -275,7 +275,7 @@ def main():
     # Attack button
     if st.button("🎯 Start Brute Force Attack", type="primary", use_container_width=True):
         target_password = get_target_password()
-        password_list = get_password_list()
+        password_list = read_passwords_from_file("small-password-list/smallpasswordlist.txt")
         
         if not target_password or not password_list:
             st.error("❌ Cannot start attack: Required data is missing")
