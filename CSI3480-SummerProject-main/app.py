@@ -12,9 +12,37 @@ import random
 import streamlit as st
 import os
 
-# Constants
-COMMON_PASSWORD_LIST = "small-password-list/smallpasswordlist.txt"
-TARGET_PASSWORD = "secret_user_info/secret_password.txt"
+def get_password_list() -> list[str]:
+    """Get the common password list - embedded for web deployment"""
+    return [
+        "123", "password", "dogs", "cats", "tomato", "oakland_university", "password123", "loveyou", 
+        "ilovedogs", "ilovecats", "apple", "sunshine", "456", "flower", "happy", "ilovebirds", 
+        "sky", "cloud", "rain", "snow", "wind", "sun", "lake", "mountain", "forest", "beach", 
+        "ocean", "desert", "valley", "hill", "grass", "leaf", "branch", "root", "seed", "bush", 
+        "vine", "cactus", "rose", "tulip", "daisy", "lily", "maple", "pine", "cedar", "birch", 
+        "dog", "cat", "bird", "fish", "horse", "cow", "pig", "sheep", "chicken", "duck", "rabbit", 
+        "mouse", "bear", "wolf", "fox", "deer", "lion", "tiger", "elephant", "monkey", "zebra", 
+        "giraffe", "kangaroo", "penguin", "whale", "dolphin", "shark", "octopus", "starfish", 
+        "crab", "lobster", "shrimp", "turtle", "frog", "snake", "lizard", "butterfly", "bee", 
+        "ant", "spider", "fly", "mosquito", "dragonfly", "ladybug", "cricket", "grasshopper", 
+        "worm", "snail", "slug", "fire", "water", "earth", "air", "light", "dark", "hot", "cold", 
+        "big", "small", "fast", "slow", "high", "low", "near", "far", "left", "right", "up", 
+        "down", "front", "back", "inside", "outside", "above", "below", "around", "through", 
+        "over", "under", "between", "among", "beside", "behind", "ahead", "across", "along", 
+        "against", "toward", "away", "into", "onto", "out", "off", "with", "without", "for", 
+        "from", "to", "by", "at", "in", "on", "and", "or", "but", "so", "if", "when", "where", 
+        "why", "how", "what", "who", "which", "that", "this", "these", "those", "some", "many", 
+        "few", "all", "most", "each", "every", "any", "no", "yes", "maybe", "always", "never", 
+        "sometimes", "often", "rarely", "usually", "quickly", "slowly", "carefully", "easily", 
+        "hardly", "really", "very", "quite", "too", "so", "such", "much", "little", "more", 
+        "less", "most", "least", "best", "worst", "good", "bad", "better", "worse", "new", 
+        "old", "young", "fresh", "clean", "dirty", "smooth", "rough", "soft", "hard", "loud", 
+        "quiet", "bright", "dim", "meadow408"  # Target password at the end
+    ]
+
+def get_target_password() -> str:
+    """Get the target password - embedded for web deployment"""
+    return "meadow408"
 
 def read_passwords_from_file(filename: str) -> list[str]:
     """Read all the words in the text file and adds it to the array for testing."""
@@ -98,9 +126,9 @@ def perform_2fa() -> bool:
 def run_brute_force_attack(enable_2fa: bool):
     """Main function to run the brute force attack simulation"""
     
-    # Read files
-    password_list_array = read_passwords_from_file(COMMON_PASSWORD_LIST)
-    target_word = get_target(TARGET_PASSWORD)
+    # Use embedded data instead of files
+    password_list_array = get_password_list()
+    target_word = get_target_password()
     
     if not target_word:
         st.error("❌ Failed: No valid target password found.")
@@ -211,27 +239,23 @@ def main():
     
     # File status check
     with st.expander("📁 System Status"):
-        password_file_exists = os.path.exists(TARGET_PASSWORD)
-        password_list_exists = os.path.exists(COMMON_PASSWORD_LIST)
+        target_password = get_target_password()
+        password_list = get_password_list()
         
         col1, col2 = st.columns(2)
         with col1:
-            if password_file_exists:
-                st.success("✅ Target password file found")
+            if target_password:
+                st.success("✅ Target password loaded")
+                st.info(f"🎯 Target: `{target_password}`")
             else:
-                st.error("❌ Target password file missing")
+                st.error("❌ Target password missing")
         
         with col2:
-            if password_list_exists:
-                st.success("✅ Password list file found")
-                try:
-                    with open(COMMON_PASSWORD_LIST, 'r', encoding='latin-1') as f:
-                        count = sum(1 for _ in f)
-                    st.info(f"📋 Contains {count} passwords")
-                except:
-                    st.warning("Could not count passwords")
+            if password_list:
+                st.success("✅ Password list loaded")
+                st.info(f"📋 Contains {len(password_list)} passwords")
             else:
-                st.error("❌ Password list file missing")
+                st.error("❌ Password list missing")
     
     st.divider()
     
@@ -250,8 +274,11 @@ def main():
     
     # Attack button
     if st.button("🎯 Start Brute Force Attack", type="primary", use_container_width=True):
-        if not (os.path.exists(TARGET_PASSWORD) and os.path.exists(COMMON_PASSWORD_LIST)):
-            st.error("❌ Cannot start attack: Required files are missing")
+        target_password = get_target_password()
+        password_list = get_password_list()
+        
+        if not target_password or not password_list:
+            st.error("❌ Cannot start attack: Required data is missing")
         else:
             run_brute_force_attack(enable_2fa)
 
