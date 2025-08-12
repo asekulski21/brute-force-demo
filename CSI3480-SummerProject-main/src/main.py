@@ -76,10 +76,15 @@ def perform_2fa(root_window) -> bool:
     if user_input is None:  # User cancelled
         return False
 
-    try:
-        if int(user_input) == random_number:
-            return True
+    # Check if user entered empty string
+    if user_input.strip() == "":
+        messagebox.showerror("2FA Failed", "Please enter a valid number!", parent=root_window)
+        return False
 
+    try:
+        if int(user_input.strip()) == random_number:
+            messagebox.showinfo("2FA Success", "2FA verification successful!", parent=root_window)
+            return True
         else:
             messagebox.showerror("2FA Failed", "Incorrect number entered!", parent=root_window)
             return False
@@ -155,14 +160,17 @@ def main(labels, twofa_checkbox, root_window) -> None:
             
             root_window.update()  # Refresh UI to show current attempt
 
-            # Check if 2FA is enabled
-            if twofa_checkbox.get():
+            # Check if 2FA is enabled - only every 25 attempts
+            if twofa_checkbox.get() and attempt % 25 == 1:
                 print("2FA enabled - requesting verification...")
 
                 if not perform_2fa(root_window):
                     print("2FA verification failed or cancelled. Stopping attack.")
                     passwordDetectedLabel.configure(text="Attack cancelled (2FA failed)")
                     return
+                
+                print("2FA verification passed - continuing attack...")
+                time.sleep(0.5)  # Small delay after 2FA verification
 
             if word == target_word:
                 print(f"\nSuccess, the password word was: \"{word}\"")
