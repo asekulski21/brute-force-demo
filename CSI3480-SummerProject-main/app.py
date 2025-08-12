@@ -271,34 +271,28 @@ def get_target(filename: str) -> str:
     return get_target_password()
 
 def perform_2fa() -> bool:
-    """Performs 2FA by generating a random 4-digit number and asking user to input it."""
+    """Simple 2FA verification - just enter the displayed number"""
     
-    # Generate random 4-digit number and store in session state
-    if 'twofa_number' not in st.session_state:
-        st.session_state.twofa_number = random.randint(1000, 9999)
+    # Generate a simple 3-digit number for easier verification
+    random_number = random.randint(100, 999)
     
-    random_number = st.session_state.twofa_number
+    st.warning(f"🔐 **2FA Required**")
+    st.info(f"**Enter this number to continue: {random_number}**")
     
-    st.warning(f"🔐 **2FA Verification Required**")
-    st.info(f"Please enter this number: **{random_number}**")
-    
-    user_input = st.text_input("Enter the 4-digit number:", max_chars=4, key="twofa_input")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        if st.button("✅ Verify", key="verify_2fa"):
-            if user_input:
+    # Simple form with auto-submit on Enter
+    with st.form("2fa_form", clear_on_submit=True):
+        user_input = st.text_input("Type the number above:", max_chars=3, placeholder="Enter 3-digit number")
+        submitted = st.form_submit_button("Continue")
+        
+        if submitted:
+            if user_input.strip():
                 try:
-                    if int(user_input) == random_number:
-                        st.success("✅ 2FA verification successful!")
-                        # Clear session state
-                        del st.session_state.twofa_number
-                        if 'twofa_input' in st.session_state:
-                            del st.session_state.twofa_input
+                    if int(user_input.strip()) == random_number:
+                        st.success("✅ Verification successful!")
+                        time.sleep(1)  # Brief pause to show success
                         return True
                     else:
-                        st.error("❌ Incorrect number entered!")
+                        st.error("❌ Wrong number! Try again.")
                         return False
                 except ValueError:
                     st.error("❌ Please enter a valid number!")
@@ -306,13 +300,6 @@ def perform_2fa() -> bool:
             else:
                 st.error("❌ Please enter the number!")
                 return False
-    
-    with col2:
-        if st.button("❌ Cancel", key="cancel_2fa"):
-            # Clear session state
-            if 'twofa_number' in st.session_state:
-                del st.session_state.twofa_number
-            return False
     
     return False
 
@@ -358,13 +345,14 @@ def main(enable_2fa: bool):
         
         # Check if 2FA is enabled - every 25 attempts
         if enable_2fa and attempt % 25 == 1:
-            st.warning("🔒 2FA verification required to continue...")
+            st.info("🔒 **2FA Check Required**")
             
             if not perform_2fa():
-                result_text.error("❌ Attack cancelled (2FA verification failed)")
+                result_text.error("❌ Attack stopped - 2FA verification failed")
                 return
             
-            st.success("✅ 2FA passed, continuing attack...")
+            # Continue attack after successful 2FA
+            st.rerun()  # Refresh to continue the loop
         
         # Check if password matches
         if word == target_word:
