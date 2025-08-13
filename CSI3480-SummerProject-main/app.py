@@ -258,6 +258,18 @@ def get_target_password() -> str:
     """Get the target password - embedded for web deployment"""
     return "meadow408"
 
+def get_password_selection_options() -> dict:
+    """Get password selection options for different difficulty levels"""
+    password_list = get_password_list()
+    
+    return {
+        "Easy (Top of list)": password_list[0],  # "123"
+        "Medium (Middle of list)": password_list[len(password_list)//2],  # Middle password
+        "Hard (End of list)": password_list[-1],  # "horizon372"
+        "Very Hard (Complex)": "meadow408",  # Original target
+        "Custom Selection": None  # Will be handled in UI
+    }
+
 def read_passwords_from_file(filename: str) -> list[str]:
     """Legacy function - now returns embedded data"""
     return get_password_list()
@@ -268,11 +280,11 @@ def get_target(filename: str) -> str:
 
 
 
-def main(enable_2fa: bool):
+def main(enable_2fa: bool, target_password: str = None):
     """Run brute force attack - automatic if 2FA disabled, step-by-step if enabled."""
 
     password_list_array = get_password_list()
-    target_word = get_target_password()
+    target_word = target_password if target_password else get_target_password()
 
     if not target_word:
         st.error("❌ Failed: No valid target password found.")
@@ -285,6 +297,7 @@ def main(enable_2fa: bool):
         # Original automatic mode - no 2FA
         st.success(f"🎯 Target password loaded: `{target_word}`")
         st.info(f"📋 Testing against {len(password_list_array)} passwords...")
+        st.info(f"🎯 **Target:** `{target_word}`")
         
         # Create placeholders for updating
         progress_bar = st.progress(0)
@@ -352,6 +365,7 @@ def main(enable_2fa: bool):
         attempt = st.session_state.attempt_index + 1 if st.session_state.attempt_index < total else total
 
         st.info(f"📋 Testing against {total} passwords...")
+        st.info(f"🎯 **Target:** `{target_word}`")
 
         # Progress/status
         progress = st.session_state.attempt_index / total
@@ -404,7 +418,51 @@ def main(enable_2fa: bool):
 st.set_page_config(page_title="Brute Force Demo", page_icon="🔓")
 st.title("🔓 Brute Force Attack Simulator")
 
-st.warning("⚠️ **EDUCATIONAL PURPOSE ONLY** - This tool is for learning about password security.")
+# Password selection
+st.write("**🎯 Select Target Password:**")
+password_options = get_password_selection_options()
+
+# Create two columns for password selection
+col1, col2 = st.columns([2, 1])
+
+with col1:
+    password_choice = st.selectbox(
+        "Choose password difficulty:",
+        list(password_options.keys()),
+        help="Select from predefined difficulty levels or choose a custom password"
+    )
+
+with col2:
+    if password_choice == "Custom Selection":
+        password_list = get_password_list()
+        custom_index = st.number_input(
+            "Select password index (0-2024):",
+            min_value=0,
+            max_value=len(password_list)-1,
+            value=0,
+            help=f"Choose any password from the list of {len(password_list)} passwords"
+        )
+        target_password = password_list[custom_index]
+        position = custom_index + 1
+        st.info(f"Selected: `{target_password}`")
+        st.write(f"📍 Position: {position}/{len(password_list)}")
+    else:
+        target_password = password_options[password_choice]
+        password_list = get_password_list()
+        try:
+            position = password_list.index(target_password) + 1
+            st.info(f"Selected: `{target_password}`")
+            st.write(f"📍 Position: {position}/{len(password_list)}")
+        except ValueError:
+            st.info(f"Selected: `{target_password}`")
+            st.write("📍 Position: Not in list (very hard)")
+
+# Show password list info
+with st.expander("📋 Password List Information"):
+    password_list = get_password_list()
+    st.write(f"**Total passwords available:** {len(password_list)}")
+    st.write("**Sample passwords:**")
+    st.code(f"First: {password_list[0]}\nMiddle: {password_list[len(password_list)//2]}\nLast: {password_list[-1]}")
 
 # Simple configuration
 enable_2fa = st.checkbox("🔐 Enable 2FA Protection")
@@ -446,4 +504,5 @@ if st.session_state.attack_requested and (not enable_2fa or st.session_state.aut
         st.session_state.start_time = time.time()
         st.session_state.attempt_index = 0
     
-    main(enable_2fa)
+
+    main(enable_2fa, target_password)
