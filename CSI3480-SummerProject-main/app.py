@@ -404,6 +404,8 @@ def main(enable_2fa: bool):
 st.set_page_config(page_title="Brute Force Demo", page_icon="🔓")
 st.title("🔓 Brute Force Attack Simulator")
 
+st.warning("⚠️ **EDUCATIONAL PURPOSE ONLY** - This tool is for learning about password security.")
+
 # Simple configuration
 enable_2fa = st.checkbox("🔐 Enable 2FA Protection")
 if enable_2fa:
@@ -444,5 +446,4 @@ if st.session_state.attack_requested and (not enable_2fa or st.session_state.aut
         st.session_state.start_time = time.time()
         st.session_state.attempt_index = 0
     
-
     main(enable_2fa)
