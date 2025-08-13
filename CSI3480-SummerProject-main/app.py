@@ -442,6 +442,14 @@ def main(enable_2fa: bool, target_password: str = None, attack_method: str = "di
         st.info(f"📋 Testing against {len(password_list_array)} passwords using {attack_method.title()} attack...")
         st.info(f"🎯 **Target:** `{target_word}`")
         
+        # Check if attack is paused or finished
+        if st.session_state.attack_paused:
+            st.warning("⏸️ **Attack Paused** - Click 'Start Brute Force Attack' to resume")
+            return
+        elif st.session_state.attack_finished:
+            st.info("⏹️ **Attack Finished** - Click 'Start Brute Force Attack' to start a new attack")
+            return
+        
         # Create placeholders for updating
         progress_bar = st.progress(0)
         status_text = st.empty()
@@ -455,6 +463,11 @@ def main(enable_2fa: bool, target_password: str = None, attack_method: str = "di
         
         # Loop through passwords automatically
         for word in password_list_array:
+            # Check if attack was paused or finished during execution
+            if st.session_state.attack_paused or st.session_state.attack_finished:
+                st.warning("⏸️ **Attack Interrupted**")
+                return
+                
             attempt += 1
             
             # Update progress
@@ -490,6 +503,8 @@ def main(enable_2fa: bool, target_password: str = None, attack_method: str = "di
                 with col4:
                     st.metric("Speed", f"{speed_metrics['passwords_per_second']} pwd/sec")
                 
+                # Mark attack as finished
+                st.session_state.attack_finished = True
                 break
             
             # Small delay for visual effect
@@ -509,9 +524,20 @@ def main(enable_2fa: bool, target_password: str = None, attack_method: str = "di
                 st.metric("Time", f"{elapsed_time}s")
             with col3:
                 st.metric("Speed", f"{speed_metrics['passwords_per_second']} pwd/sec")
+            
+            # Mark attack as finished
+            st.session_state.attack_finished = True
     
     else:
         # 2FA enabled - step-by-step mode
+        # Check if attack is paused or finished
+        if st.session_state.attack_paused:
+            st.warning("⏸️ **Attack Paused** - Click 'Start Brute Force Attack' to resume")
+            return
+        elif st.session_state.attack_finished:
+            st.info("⏹️ **Attack Finished** - Click 'Start Brute Force Attack' to start a new attack")
+            return
+        
         # Initialize attack state
         st.session_state.setdefault("attempt_index", 0)
         st.session_state.setdefault("start_time", time.time())
@@ -544,20 +570,26 @@ def main(enable_2fa: bool, target_password: str = None, attack_method: str = "di
                 st.metric("Time", f"{elapsed_time}s")
             with col3:
                 st.metric("Speed", f"{speed_metrics['passwords_per_second']} pwd/sec")
+            
+            # Mark attack as finished
+            st.session_state.attack_finished = True
             return
 
         current_word = password_list_array[st.session_state.attempt_index]
         st.write(f"🔍 **Next attempt:** `{current_word}` (#{attempt} of {total})")
 
+        # Generate new 2FA code for each attempt
+        current_2fa_code = str(random.randint(1000, 9999))
+        
         # One-attempt form: when submitted, we process exactly one attempt
         form_key = f"attempt_form_{st.session_state.attempt_index}"
         with st.form(form_key, clear_on_submit=True):
-            user_pass = st.text_input(f"Enter 2FA code '{st.session_state.twofa_code}' to run this attempt:", type="password")
+            user_pass = st.text_input(f"Enter 2FA code '{current_2fa_code}' to run this attempt:", type="password")
             submitted = st.form_submit_button("Run this attempt")
 
         if submitted:
-            if user_pass != st.session_state.twofa_code:
-                st.error(f"❌ Wrong code. Enter '{st.session_state.twofa_code}' to proceed.")
+            if user_pass != current_2fa_code:
+                st.error(f"❌ Wrong code. Enter '{current_2fa_code}' to proceed.")
                 return
 
             # Process the attempt
@@ -575,6 +607,9 @@ def main(enable_2fa: bool, target_password: str = None, attack_method: str = "di
                     st.metric("Time", f"{elapsed_time}s")
                 with col4:
                     st.metric("Speed", f"{speed_metrics['passwords_per_second']} pwd/sec")
+                
+                # Mark attack as finished
+                st.session_state.attack_finished = True
                 return
             else:
                 # Advance to next attempt
@@ -697,11 +732,38 @@ st.session_state.setdefault("attack_requested", False)
 st.session_state.setdefault("authenticated", False)
 st.session_state.setdefault("twofa_error", "")
 st.session_state.setdefault("attack_started", False)
+st.session_state.setdefault("attack_paused", False)
+st.session_state.setdefault("attack_finished", False)
 
-# Start button just flags the request to start
-if st.button("🎯 Start Brute Force Attack", type="primary"):
-    st.session_state.attack_requested = True
-    st.session_state.twofa_error = ""
+# Attack control buttons
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    if st.button("🎯 Start Brute Force Attack", type="primary", disabled=st.session_state.attack_started and not st.session_state.attack_paused and not st.session_state.attack_finished):
+        st.session_state.attack_requested = True
+        st.session_state.attack_paused = False
+        st.session_state.attack_finished = False
+        st.session_state.twofa_error = ""
+
+with col2:
+    if st.button("⏸️ Pause Attack", disabled=not st.session_state.attack_started or st.session_state.attack_paused or st.session_state.attack_finished):
+        st.session_state.attack_paused = True
+
+with col3:
+    if st.button("⏹️ Finish Attack", disabled=not st.session_state.attack_started or st.session_state.attack_finished):
+        st.session_state.attack_finished = True
+        st.session_state.attack_paused = True
+
+with col4:
+    if st.button("🔄 Reset Attack", disabled=not st.session_state.attack_started):
+        st.session_state.attack_started = False
+        st.session_state.attack_requested = False
+        st.session_state.attack_paused = False
+        st.session_state.attack_finished = False
+        st.session_state.authenticated = False
+        st.session_state.attempt_index = 0
+        st.session_state.twofa_error = ""
+        st.rerun()
 
 # If user requested an attack and 2FA is enabled but not authenticated, prompt now
 if st.session_state.attack_requested and enable_2fa and not st.session_state.authenticated:
@@ -726,6 +788,8 @@ if st.session_state.attack_requested and (not enable_2fa or st.session_state.aut
         st.session_state.attack_started = True
         st.session_state.start_time = time.time()
         st.session_state.attempt_index = 0
+        st.session_state.attack_paused = False
+        st.session_state.attack_finished = False
     
 
     main(enable_2fa, target_password, attack_method)
