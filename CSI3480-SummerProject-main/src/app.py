@@ -12,10 +12,145 @@ Date: 7/24/2025
 import time
 import random
 import streamlit as st
+import re
+import string
+from collections import Counter
 
 # Constants
 COMMON_PASSWORD_LIST = "small-password-list/smallpasswordlist.txt"
 TARGET_PASSWORD = "secret_user_info/secret_password.txt"
+
+def analyze_password_strength(password: str) -> dict:
+    """Analyze password strength and provide detailed feedback"""
+    score = 0
+    feedback = []
+    
+    # Length analysis
+    if len(password) < 8:
+        feedback.append("❌ Too short (less than 8 characters)")
+    elif len(password) < 12:
+        feedback.append("⚠️ Moderate length (8-11 characters)")
+        score += 1
+    else:
+        feedback.append("✅ Good length (12+ characters)")
+        score += 2
+    
+    # Character variety analysis
+    has_lower = any(c.islower() for c in password)
+    has_upper = any(c.isupper() for c in password)
+    has_digit = any(c.isdigit() for c in password)
+    has_special = any(c in string.punctuation for c in password)
+    
+    char_types = sum([has_lower, has_upper, has_digit, has_special])
+    if char_types == 1:
+        feedback.append("❌ Only one character type used")
+    elif char_types == 2:
+        feedback.append("⚠️ Two character types used")
+        score += 1
+    elif char_types == 3:
+        feedback.append("✅ Three character types used")
+        score += 2
+    else:
+        feedback.append("✅ All four character types used")
+        score += 3
+    
+    # Common patterns
+    if password.lower() in ['password', '123456', 'qwerty', 'admin']:
+        feedback.append("❌ Very common password")
+        score -= 2
+    elif password.lower() in ['password123', '123456789', 'qwerty123']:
+        feedback.append("❌ Common pattern with numbers")
+        score -= 1
+    
+    # Sequential characters
+    if any(password[i:i+3] in string.ascii_lowercase for i in range(len(password)-2)):
+        feedback.append("⚠️ Contains sequential letters")
+        score -= 1
+    
+    # Repeated characters
+    if len(set(password)) < len(password) * 0.7:
+        feedback.append("⚠️ Many repeated characters")
+        score -= 1
+    
+    # Dictionary word check
+    common_words = ['password', 'admin', 'user', 'login', 'welcome', 'hello', 'test']
+    if password.lower() in common_words:
+        feedback.append("❌ Common dictionary word")
+        score -= 2
+    
+    # Entropy calculation (simplified)
+    charset_size = 0
+    if has_lower: charset_size += 26
+    if has_upper: charset_size += 26
+    if has_digit: charset_size += 10
+    if has_special: charset_size += 32
+    
+    entropy = len(password) * (charset_size ** 0.5)
+    
+    # Overall strength rating
+    if score <= 0:
+        strength = "Very Weak"
+        color = "red"
+    elif score <= 2:
+        strength = "Weak"
+        color = "orange"
+    elif score <= 4:
+        strength = "Moderate"
+        color = "yellow"
+    elif score <= 6:
+        strength = "Strong"
+        color = "lightgreen"
+    else:
+        strength = "Very Strong"
+        color = "green"
+    
+    return {
+        "score": score,
+        "strength": strength,
+        "color": color,
+        "feedback": feedback,
+        "entropy": round(entropy, 1),
+        "length": len(password),
+        "char_types": char_types,
+        "has_lower": has_lower,
+        "has_upper": has_upper,
+        "has_digit": has_digit,
+        "has_special": has_special
+    }
+
+def generate_incremental_passwords(max_length: int = 4) -> list[str]:
+    """Generate passwords using incremental attack method"""
+    passwords = []
+    chars = string.ascii_lowercase + string.digits  # 36 characters
+    
+    # Generate all combinations up to max_length
+    from itertools import product
+    for length in range(1, max_length + 1):
+        # Generate combinations of current length
+        for combo in product(chars, repeat=length):
+            passwords.append(''.join(combo))
+    
+    return passwords
+
+def calculate_attack_speed(attempts: int, elapsed_time: float) -> dict:
+    """Calculate and format attack speed metrics"""
+    if elapsed_time <= 0:
+        return {
+            "passwords_per_second": 0,
+            "passwords_per_minute": 0,
+            "estimated_total_time": 0,
+            "progress_percentage": 0
+        }
+    
+    passwords_per_second = attempts / elapsed_time
+    passwords_per_minute = passwords_per_second * 60
+    
+    return {
+        "passwords_per_second": round(passwords_per_second, 2),
+        "passwords_per_minute": round(passwords_per_minute, 2),
+        "elapsed_time": round(elapsed_time, 2),
+        "attempts": attempts
+    }
 
 def get_password_list() -> list[str]:
     """Get the common password list - embedded for web deployment"""
@@ -258,6 +393,18 @@ def get_target_password() -> str:
     """Get the target password - embedded for web deployment"""
     return "meadow408"
 
+def get_password_selection_options() -> dict:
+    """Get password selection options for different difficulty levels"""
+    password_list = get_password_list()
+    
+    return {
+        "Easy (Top of list)": password_list[0],  # "123"
+        "Medium (Middle of list)": password_list[len(password_list)//2],  # Middle password
+        "Hard (End of list)": password_list[-1],  # "horizon372"
+        "Very Hard (Complex)": "meadow408",  # Original target
+        "Custom Selection": None  # Will be handled in UI
+    }
+
 def read_passwords_from_file(filename: str) -> list[str]:
     """Legacy function - now returns embedded data"""
     return get_password_list()
@@ -268,11 +415,19 @@ def get_target(filename: str) -> str:
 
 
 
-def main(enable_2fa: bool):
+def main(enable_2fa: bool, target_password: str = None, attack_method: str = "dictionary"):
     """Run brute force attack - automatic if 2FA disabled, step-by-step if enabled."""
 
-    password_list_array = get_password_list()
-    target_word = get_target_password()
+    # Select password list based on attack method
+    if attack_method == "dictionary":
+        password_list_array = get_password_list()
+    elif attack_method == "incremental":
+        password_list_array = generate_incremental_passwords(4)  # Up to 4 characters
+    else:
+        st.error("❌ Invalid attack method selected.")
+        return
+
+    target_word = target_password if target_password else get_target_password()
 
     if not target_word:
         st.error("❌ Failed: No valid target password found.")
@@ -284,12 +439,22 @@ def main(enable_2fa: bool):
     if not enable_2fa:
         # Original automatic mode - no 2FA
         st.success(f"🎯 Target password loaded: `{target_word}`")
-        st.info(f"📋 Testing against {len(password_list_array)} passwords...")
+        st.info(f"📋 Testing against {len(password_list_array)} passwords using {attack_method.title()} attack...")
+        st.info(f"🎯 **Target:** `{target_word}`")
+        
+        # Check if attack is paused or finished
+        if st.session_state.attack_paused:
+            st.warning("⏸️ **Attack Paused** - Click 'Start Brute Force Attack' to resume")
+            return
+        elif st.session_state.attack_finished:
+            st.info("⏹️ **Attack Finished** - Click 'Start Brute Force Attack' to start a new attack")
+            return
         
         # Create placeholders for updating
         progress_bar = st.progress(0)
         status_text = st.empty()
         attempt_text = st.empty()
+        speed_text = st.empty()
         result_text = st.empty()
         
         start_time = time.time()
@@ -298,15 +463,26 @@ def main(enable_2fa: bool):
         
         # Loop through passwords automatically
         for word in password_list_array:
+            # Check if attack was paused or finished during execution
+            if st.session_state.attack_paused or st.session_state.attack_finished:
+                st.warning("⏸️ **Attack Interrupted**")
+                return
+                
             attempt += 1
             
             # Update progress
             progress = attempt / len(password_list_array)
             progress_bar.progress(progress)
             
+            # Calculate and display attack speed
+            current_time = time.time()
+            elapsed_time = current_time - start_time
+            speed_metrics = calculate_attack_speed(attempt, elapsed_time)
+            
             # Update status
             status_text.write(f"🔍 **Trying password:** `{word}`")
             attempt_text.write(f"📊 **Attempt #{attempt}** of {len(password_list_array)}")
+            speed_text.write(f"⚡ **Speed:** {speed_metrics['passwords_per_second']} pwd/sec | {speed_metrics['passwords_per_minute']} pwd/min")
             
             # Check if password matches
             if word == target_word:
@@ -317,14 +493,18 @@ def main(enable_2fa: bool):
                 result_text.success(f"🎉 **SUCCESS!** Password found: `{word}`")
                 st.balloons()
                 
-                col1, col2, col3 = st.columns(3)
+                col1, col2, col3, col4 = st.columns(4)
                 with col1:
                     st.metric("Result", "Found")
                 with col2:
                     st.metric("Attempts", attempt)
                 with col3:
                     st.metric("Time", f"{elapsed_time}s")
+                with col4:
+                    st.metric("Speed", f"{speed_metrics['passwords_per_second']} pwd/sec")
                 
+                # Mark attack as finished
+                st.session_state.attack_finished = True
                 break
             
             # Small delay for visual effect
@@ -334,16 +514,30 @@ def main(enable_2fa: bool):
         if not found:
             end_time = time.time()
             elapsed_time = round(end_time - start_time, 2)
-            result_text.error("❌ **FAILED:** Password not found in common password list")
+            speed_metrics = calculate_attack_speed(attempt, elapsed_time)
+            result_text.error("❌ **FAILED:** Password not found in password list")
             
-            col1, col2 = st.columns(2)
+            col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric("Result", "Not Found")
             with col2:
                 st.metric("Time", f"{elapsed_time}s")
+            with col3:
+                st.metric("Speed", f"{speed_metrics['passwords_per_second']} pwd/sec")
+            
+            # Mark attack as finished
+            st.session_state.attack_finished = True
     
     else:
         # 2FA enabled - step-by-step mode
+        # Check if attack is paused or finished
+        if st.session_state.attack_paused:
+            st.warning("⏸️ **Attack Paused** - Click 'Start Brute Force Attack' to resume")
+            return
+        elif st.session_state.attack_finished:
+            st.info("⏹️ **Attack Finished** - Click 'Start Brute Force Attack' to start a new attack")
+            return
+        
         # Initialize attack state
         st.session_state.setdefault("attempt_index", 0)
         st.session_state.setdefault("start_time", time.time())
@@ -351,49 +545,71 @@ def main(enable_2fa: bool):
         total = len(password_list_array)
         attempt = st.session_state.attempt_index + 1 if st.session_state.attempt_index < total else total
 
-        st.info(f"📋 Testing against {total} passwords...")
+        st.info(f"📋 Testing against {total} passwords using {attack_method.title()} attack...")
+        st.info(f"🎯 **Target:** `{target_word}`")
 
         # Progress/status
         progress = st.session_state.attempt_index / total
         st.progress(progress)
 
+        # Display attack speed for 2FA mode
+        if st.session_state.attempt_index > 0:
+            elapsed_time = time.time() - st.session_state.start_time
+            speed_metrics = calculate_attack_speed(st.session_state.attempt_index, elapsed_time)
+            st.info(f"⚡ **Current Speed:** {speed_metrics['passwords_per_second']} pwd/sec | {speed_metrics['passwords_per_minute']} pwd/min")
+
         # If attack finished previously
         if st.session_state.attempt_index >= total:
             elapsed_time = round(time.time() - st.session_state.start_time, 2)
-            st.error("❌ **FAILED:** Password not found in common password list")
-            col1, col2 = st.columns(2)
+            speed_metrics = calculate_attack_speed(total, elapsed_time)
+            st.error("❌ **FAILED:** Password not found in password list")
+            col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric("Result", "Not Found")
             with col2:
                 st.metric("Time", f"{elapsed_time}s")
+            with col3:
+                st.metric("Speed", f"{speed_metrics['passwords_per_second']} pwd/sec")
+            
+            # Mark attack as finished
+            st.session_state.attack_finished = True
             return
 
         current_word = password_list_array[st.session_state.attempt_index]
         st.write(f"🔍 **Next attempt:** `{current_word}` (#{attempt} of {total})")
 
+        # Generate new 2FA code for each attempt
+        current_2fa_code = str(random.randint(1000, 9999))
+        
         # One-attempt form: when submitted, we process exactly one attempt
         form_key = f"attempt_form_{st.session_state.attempt_index}"
         with st.form(form_key, clear_on_submit=True):
-            user_pass = st.text_input("Enter password '123' to run this attempt:", type="password")
+            user_pass = st.text_input(f"Enter 2FA code '{current_2fa_code}' to run this attempt:", type="password")
             submitted = st.form_submit_button("Run this attempt")
 
         if submitted:
-            if user_pass != "123":
-                st.error("❌ Wrong password. Enter '123' to proceed.")
+            if user_pass != current_2fa_code:
+                st.error(f"❌ Wrong code. Enter '{current_2fa_code}' to proceed.")
                 return
 
             # Process the attempt
             if current_word == target_word:
                 elapsed_time = round(time.time() - st.session_state.start_time, 2)
+                speed_metrics = calculate_attack_speed(attempt, elapsed_time)
                 st.success(f"🎉 **SUCCESS!** Password found: `{current_word}`")
                 st.balloons()
-                col1, col2, col3 = st.columns(3)
+                col1, col2, col3, col4 = st.columns(4)
                 with col1:
                     st.metric("Result", "Found")
                 with col2:
                     st.metric("Attempts", attempt)
                 with col3:
                     st.metric("Time", f"{elapsed_time}s")
+                with col4:
+                    st.metric("Speed", f"{speed_metrics['passwords_per_second']} pwd/sec")
+                
+                # Mark attack as finished
+                st.session_state.attack_finished = True
                 return
             else:
                 # Advance to next attempt
@@ -404,35 +620,162 @@ def main(enable_2fa: bool):
 st.set_page_config(page_title="Brute Force Demo", page_icon="🔓")
 st.title("🔓 Brute Force Attack Simulator")
 
-st.warning("⚠️ **EDUCATIONAL PURPOSE ONLY** - This tool is for learning about password security.")
+# Generate random 4-digit 2FA code
+if "twofa_code" not in st.session_state:
+    st.session_state.twofa_code = str(random.randint(1000, 9999))
+
+# Password selection
+st.write("**🎯 Select Target Password:**")
+password_options = get_password_selection_options()
+
+# Create two columns for password selection
+col1, col2 = st.columns([2, 1])
+
+with col1:
+    password_choice = st.selectbox(
+        "Choose password difficulty:",
+        list(password_options.keys()),
+        help="Select from predefined difficulty levels or choose a custom password"
+    )
+
+with col2:
+    if password_choice == "Custom Selection":
+        password_list = get_password_list()
+        custom_index = st.number_input(
+            "Select password index (0-2024):",
+            min_value=0,
+            max_value=len(password_list)-1,
+            value=0,
+            help=f"Choose any password from the list of {len(password_list)} passwords"
+        )
+        target_password = password_list[custom_index]
+        position = custom_index + 1
+        st.info(f"Selected: `{target_password}`")
+        st.write(f"📍 Position: {position}/{len(password_list)}")
+    else:
+        target_password = password_options[password_choice]
+        password_list = get_password_list()
+        try:
+            position = password_list.index(target_password) + 1
+            st.info(f"Selected: `{target_password}`")
+            st.write(f"📍 Position: {position}/{len(password_list)}")
+        except ValueError:
+            st.info(f"Selected: `{target_password}`")
+            st.write("📍 Position: Not in list (very hard)")
+
+# Password Strength Analyzer
+st.write("**🔍 Password Strength Analysis:**")
+strength_analysis = analyze_password_strength(target_password)
+
+col1, col2, col3 = st.columns(3)
+with col1:
+    st.metric("Strength", strength_analysis["strength"])
+with col2:
+    st.metric("Score", strength_analysis["score"])
+with col3:
+    st.metric("Entropy", strength_analysis["entropy"])
+
+# Character type indicators
+char_col1, char_col2, char_col3, char_col4 = st.columns(4)
+with char_col1:
+    st.write(f"**Lowercase:** {'✅' if strength_analysis['has_lower'] else '❌'}")
+with char_col2:
+    st.write(f"**Uppercase:** {'✅' if strength_analysis['has_upper'] else '❌'}")
+with char_col3:
+    st.write(f"**Digits:** {'✅' if strength_analysis['has_digit'] else '❌'}")
+with char_col4:
+    st.write(f"**Special:** {'✅' if strength_analysis['has_special'] else '❌'}")
+
+# Detailed feedback
+with st.expander("📊 Detailed Analysis"):
+    for feedback in strength_analysis["feedback"]:
+        st.write(feedback)
+
+# Attack Method Selection
+st.write("**⚔️ Attack Method:**")
+attack_method = st.selectbox(
+    "Choose attack method:",
+    ["dictionary", "incremental"],
+    format_func=lambda x: x.title(),
+    help="Dictionary: Tests against common passwords (faster)\nIncremental: Tests all combinations up to 4 characters (slower but more thorough)"
+)
+
+# Show attack method info
+if attack_method == "dictionary":
+    password_list = get_password_list()
+    st.info(f"📋 **Dictionary Attack:** Testing against {len(password_list)} common passwords")
+elif attack_method == "incremental":
+    incremental_list = generate_incremental_passwords(4)
+    st.info(f"📋 **Incremental Attack:** Testing all combinations up to 4 characters ({len(incremental_list)} total)")
+
+# Show password list info
+with st.expander("📋 Password List Information"):
+    if attack_method == "dictionary":
+        password_list = get_password_list()
+        st.write(f"**Total passwords available:** {len(password_list)}")
+        st.write("**Sample passwords:**")
+        st.code(f"First: {password_list[0]}\nMiddle: {password_list[len(password_list)//2]}\nLast: {password_list[-1]}")
+    else:
+        incremental_list = generate_incremental_passwords(4)
+        st.write(f"**Total combinations:** {len(incremental_list)}")
+        st.write("**Character set:** a-z, 0-9 (36 characters)")
+        st.write("**Sample combinations:**")
+        st.code(f"1 char: {incremental_list[0]}, {incremental_list[10]}, {incremental_list[35]}\n2 chars: {incremental_list[36]}, {incremental_list[100]}, {incremental_list[500]}\n3 chars: {incremental_list[1296]}, {incremental_list[2000]}, {incremental_list[3000]}")
 
 # Simple configuration
 enable_2fa = st.checkbox("🔐 Enable 2FA Protection")
 if enable_2fa:
-    st.info("🔒 You will need to enter password '123' before starting")
+    st.info(f"🔒 You will need to enter the 2FA code: **{st.session_state.twofa_code}**")
 
 # Session state for flow
 st.session_state.setdefault("attack_requested", False)
 st.session_state.setdefault("authenticated", False)
 st.session_state.setdefault("twofa_error", "")
 st.session_state.setdefault("attack_started", False)
+st.session_state.setdefault("attack_paused", False)
+st.session_state.setdefault("attack_finished", False)
 
-# Start button just flags the request to start
-if st.button("🎯 Start Brute Force Attack", type="primary"):
-    st.session_state.attack_requested = True
-    st.session_state.twofa_error = ""
+# Attack control buttons
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    if st.button("🎯 Start Brute Force Attack", type="primary", disabled=st.session_state.attack_started and not st.session_state.attack_paused and not st.session_state.attack_finished):
+        st.session_state.attack_requested = True
+        st.session_state.attack_paused = False
+        st.session_state.attack_finished = False
+        st.session_state.twofa_error = ""
+
+with col2:
+    if st.button("⏸️ Pause Attack", disabled=not st.session_state.attack_started or st.session_state.attack_paused or st.session_state.attack_finished):
+        st.session_state.attack_paused = True
+
+with col3:
+    if st.button("⏹️ Finish Attack", disabled=not st.session_state.attack_started or st.session_state.attack_finished):
+        st.session_state.attack_finished = True
+        st.session_state.attack_paused = True
+
+with col4:
+    if st.button("🔄 Reset Attack", disabled=not st.session_state.attack_started):
+        st.session_state.attack_started = False
+        st.session_state.attack_requested = False
+        st.session_state.attack_paused = False
+        st.session_state.attack_finished = False
+        st.session_state.authenticated = False
+        st.session_state.attempt_index = 0
+        st.session_state.twofa_error = ""
+        st.rerun()
 
 # If user requested an attack and 2FA is enabled but not authenticated, prompt now
 if st.session_state.attack_requested and enable_2fa and not st.session_state.authenticated:
     st.warning("🔐 **2FA Required**")
-    st.info("Enter password '123' to start the attack")
+    st.info(f"Enter the 2FA code: **{st.session_state.twofa_code}**")
 
-    twofa_input = st.text_input("Password:", type="password", key="twofa_input")
+    twofa_input = st.text_input("2FA Code:", type="password", key="twofa_input")
     if st.button("Authenticate"):
-        if twofa_input == "123":
+        if twofa_input == st.session_state.twofa_code:
             st.session_state.authenticated = True
         else:
-            st.session_state.twofa_error = "Wrong password! Enter '123'"
+            st.session_state.twofa_error = f"Wrong code! Enter {st.session_state.twofa_code}"
 
     if st.session_state.twofa_error:
         st.error(st.session_state.twofa_error)
@@ -445,5 +788,8 @@ if st.session_state.attack_requested and (not enable_2fa or st.session_state.aut
         st.session_state.attack_started = True
         st.session_state.start_time = time.time()
         st.session_state.attempt_index = 0
+        st.session_state.attack_paused = False
+        st.session_state.attack_finished = False
     
-    main(enable_2fa)
+
+    main(enable_2fa, target_password, attack_method)
