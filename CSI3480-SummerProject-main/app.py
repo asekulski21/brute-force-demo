@@ -15,9 +15,16 @@ import streamlit as st
 import re
 import string
 from collections import Counter
-import plotly.graph_objects as go
-import plotly.express as px
-import numpy as np
+
+# Try to import plotting libraries, with fallback
+try:
+    import plotly.graph_objects as go
+    import plotly.express as px
+    import numpy as np
+    PLOTTING_AVAILABLE = True
+except ImportError:
+    PLOTTING_AVAILABLE = False
+    st.warning("⚠️ Plotly not available. Interactive graphs will be disabled.")
 
 # Constants
 COMMON_PASSWORD_LIST = "small-password-list/smallpasswordlist.txt"
@@ -708,8 +715,12 @@ def main(enable_2fa: bool, target_password: str = None, attack_method: str = "di
         current_word = password_list_array[st.session_state.attempt_index]
         st.write(f"🔍 **Next attempt:** `{current_word}` (#{attempt} of {total})")
 
-        # Generate new 2FA code for each attempt
-        current_2fa_code = str(random.randint(1000, 9999))
+        # Generate and store 2FA code for this attempt if not already generated
+        attempt_2fa_key = f"attempt_2fa_{st.session_state.attempt_index}"
+        if attempt_2fa_key not in st.session_state:
+            st.session_state[attempt_2fa_key] = str(random.randint(1000, 9999))
+        
+        current_2fa_code = st.session_state[attempt_2fa_key]
         
         # One-attempt form: when submitted, we process exactly one attempt
         form_key = f"attempt_form_{st.session_state.attempt_index}"
@@ -897,6 +908,12 @@ with main_col:
             st.session_state.authenticated = False
             st.session_state.attempt_index = 0
             st.session_state.twofa_error = ""
+            
+            # Clear all stored 2FA codes for attempts
+            keys_to_remove = [key for key in st.session_state.keys() if key.startswith("attempt_2fa_")]
+            for key in keys_to_remove:
+                del st.session_state[key]
+            
             st.rerun()
 
     # If user requested an attack and 2FA is enabled but not authenticated, prompt now
