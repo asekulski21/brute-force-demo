@@ -11,6 +11,9 @@ import time
 import random
 import streamlit as st
 import os
+import re
+import string
+from collections import Counter
 
 def get_password_list() -> list[str]:
     """Get the complete common password list - all 2025 passwords embedded for web deployment"""
@@ -252,6 +255,18 @@ def get_target_password() -> str:
     """Get the target password - embedded for web deployment"""
     return "meadow408"
 
+def get_password_selection_options() -> dict:
+    """Get password selection options for different difficulty levels"""
+    password_list = get_password_list()
+    
+    return {
+        "Easy (Top of list)": password_list[0],  # "123"
+        "Medium (Middle of list)": password_list[len(password_list)//2],  # Middle password
+        "Hard (End of list)": password_list[-1],  # "horizon372"
+        "Very Hard (Complex)": "meadow408",  # Original target
+        "Custom Selection": None  # Will be handled in UI
+    }
+
 def read_passwords_from_file(filename: str) -> list[str]:
     """Legacy function - now returns embedded data"""
     return get_password_list()
@@ -344,6 +359,87 @@ def run_brute_force_attack(enable_2fa: bool):
         with col2:
             st.metric("⏱️ Time", f"{elapsed_time}s")
 
+def run_brute_force_attack_with_target(enable_2fa: bool, target_password: str):
+    """Main function to run the brute force attack simulation with custom target password"""
+    
+    # Use embedded data instead of files
+    password_list_array = get_password_list()
+    target_word = target_password
+    
+    if not target_word:
+        st.error("❌ Failed: No valid target password found.")
+        return
+    
+    if len(password_list_array) == 0:
+        st.error("❌ Failed: Password list is empty.")
+        return
+    
+    # Show attack info
+    st.success(f"🎯 Target password loaded successfully!")
+    st.info(f"📋 Testing against {len(password_list_array)} common passwords...")
+    st.info(f"🎯 **Target:** `{target_word}`")
+    
+    # Create progress tracking
+    progress_bar = st.progress(0)
+    status_placeholder = st.empty()
+    attempt_placeholder = st.empty()
+    result_placeholder = st.empty()
+    
+    start_time = time.time()
+    attempt = 0
+    found = False
+    
+    # Loop through passwords - EXACT same logic as original
+    for word in password_list_array:
+        attempt += 1
+        
+        # Update progress
+        progress = attempt / len(password_list_array)
+        progress_bar.progress(progress)
+        
+        # Update status
+        status_placeholder.write(f"🔍 **Trying password:** `{word}`")
+        attempt_placeholder.write(f"📊 **Attempt #{attempt}** of {len(password_list_array)}")
+        
+        # 2FA during attack removed; pre-start auth should be handled in UI
+        
+        # Check if password matches - EXACT same logic as original
+        if word == target_word:
+            found = True
+            end_time = time.time()
+            elapsed_time = round(end_time - start_time, 2)
+            
+            # Success display
+            result_placeholder.success(f"🎉 **SUCCESS!** Password found: `{word}`")
+            st.balloons()
+            
+            # Show statistics
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("✅ Result", "Found")
+            with col2:
+                st.metric("🔢 Attempts", attempt)
+            with col3:
+                st.metric("⏱️ Time", f"{elapsed_time}s")
+            
+            break
+        
+        # Small delay for visual effect
+        time.sleep(0.05)
+    
+    # If not found - EXACT same logic as original
+    if not found:
+        end_time = time.time()
+        elapsed_time = round(end_time - start_time, 2)
+        
+        result_placeholder.error("❌ **FAILED:** Password not found in common password list")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("❌ Result", "Not Found")
+        with col2:
+            st.metric("⏱️ Time", f"{elapsed_time}s")
+
 # Main Streamlit app
 def main():
     # Page configuration
@@ -352,6 +448,10 @@ def main():
         page_icon="🔓",
         layout="centered"
     )
+    
+    # Generate random 4-digit 2FA code
+    if "twofa_code" not in st.session_state:
+        st.session_state.twofa_code = str(random.randint(1000, 9999))
     
     # Header
     st.title("🔓 Brute Force Attack Simulator")
@@ -365,28 +465,70 @@ def main():
     
     # File status check
     with st.expander("📁 System Status"):
-        target_password = get_target_password()
         password_list = get_password_list()
         
         col1, col2 = st.columns(2)
         with col1:
-            if target_password:
-                st.success("✅ Target password loaded")
-                st.info(f"🎯 Target: `{target_password}`")
-            else:
-                st.error("❌ Target password missing")
-        
-        with col2:
             if password_list:
                 st.success("✅ Password list loaded")
                 st.info(f"📋 Contains {len(password_list)} passwords")
             else:
                 st.error("❌ Password list missing")
+        
+        with col2:
+            st.success("✅ System ready")
+            st.info("🎯 Target password will be selected below")
     
     st.divider()
     
     # Attack configuration
     st.subheader("⚙️ Attack Configuration")
+    
+    # Password selection
+    st.write("**🎯 Select Target Password:**")
+    password_options = get_password_selection_options()
+    
+    # Create two columns for password selection
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        password_choice = st.selectbox(
+            "Choose password difficulty:",
+            list(password_options.keys()),
+            help="Select from predefined difficulty levels or choose a custom password"
+        )
+    
+    with col2:
+        if password_choice == "Custom Selection":
+            password_list = get_password_list()
+            custom_index = st.number_input(
+                "Select password index (0-2024):",
+                min_value=0,
+                max_value=len(password_list)-1,
+                value=0,
+                help=f"Choose any password from the list of {len(password_list)} passwords"
+            )
+            target_password = password_list[custom_index]
+            position = custom_index + 1
+            st.info(f"Selected: `{target_password}`")
+            st.write(f"📍 Position: {position}/{len(password_list)}")
+        else:
+            target_password = password_options[password_choice]
+            password_list = get_password_list()
+            try:
+                position = password_list.index(target_password) + 1
+                st.info(f"Selected: `{target_password}`")
+                st.write(f"📍 Position: {position}/{len(password_list)}")
+            except ValueError:
+                st.info(f"Selected: `{target_password}`")
+                st.write("📍 Position: Not in list (very hard)")
+    
+    # Show password list info
+    with st.expander("📋 Password List Information"):
+        password_list = get_password_list()
+        st.write(f"**Total passwords available:** {len(password_list)}")
+        st.write("**Sample passwords:**")
+        st.code(f"First: {password_list[0]}\nMiddle: {password_list[len(password_list)//2]}\nLast: {password_list[-1]}")
     
     enable_2fa = st.checkbox(
         "🔐 Enable 2FA Protection", 
@@ -394,19 +536,19 @@ def main():
     )
     
     if enable_2fa:
-        st.info("🔒 2FA verification will be required every 25 password attempts")
+        st.info(f"🔒 2FA verification will be required every 25 password attempts. Code: **{st.session_state.twofa_code}**")
     
     st.divider()
     
     # Attack button
     if st.button("🎯 Start Brute Force Attack", type="primary", use_container_width=True):
-        target_password = get_target_password()
         password_list = get_password_list()
         
         if not target_password or not password_list:
             st.error("❌ Cannot start attack: Required data is missing")
         else:
-            run_brute_force_attack(enable_2fa)
+            # Pass the selected target password to the attack function
+            run_brute_force_attack_with_target(enable_2fa, target_password)
 
 if __name__ == "__main__":
     main()

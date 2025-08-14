@@ -1,38 +1,69 @@
 # Brute Force Attack Simulator
 
-A web-based educational tool that demonstrates brute force password attacks for cybersecurity learning.
+A cybersecurity educational tool that demonstrates brute force password attacks.
 
-## 🎯 **Educational Purpose Only**
+## Educational Purpose Only
 This application is designed for educational and demonstration purposes only. It simulates a brute force attack to demonstrate password security concepts.
 
-## 🚀 **Live Demo**
-[Access the live application here](https://your-app-url.streamlit.app) *(URL will be updated after deployment)*
+## Team
+- Authors: Andrae Taylor, Christina Carvalho, Alexander Sekulski
+- Course: CSI3480 Summer Project
+- Date: 7/24/2025
 
-## 👥 **Team**
-- **Authors:** Andrae Taylor, Christina Carvalho, Alexander Sekulski
-- **Course:** CSI3480 Summer Project
-- **Date:** 7/24/2025
+## Project Structure
+```
+├── app.py                    # Streamlit web application
+├── src/main.py              # Desktop GUI application
+├── requirements.txt          # Python dependencies
+├── secret_user_info/         # Target password file
+└── small-password-list/      # Common passwords for testing
+```
 
-## 🔧 **Features**
-- Simulates brute force password attacks
-- 2FA (Two-Factor Authentication) demonstration
+## How to Run
+
+### Prerequisites
+- Python 3.7 or higher
+- pip (Python package installer)
+
+### Installation
+1. Clone or download this repository
+2. Navigate to the project directory:
+   ```
+   cd CSI3480-SummerProject-main
+   ```
+3. Install required dependencies:
+   ```
+   pip install -r requirements.txt
+   ```
+
+### Running the Applications
+
+#### Option 1: Desktop GUI Application (main.py)
+Run the desktop version with a graphical user interface:
+```
+python src/main.py
+```
+
+Features:
+- Interactive GUI with attack controls
 - Real-time attack progress tracking
-- Educational security demonstrations
+- 2FA (Two-Factor Authentication) demonstration
+- Password strength analysis
+- Login testing system
+- Attack method selection (Dictionary/Incremental)
 
-## 💻 **Local Development**
-```bash
-pip install streamlit
+#### Option 2: Web Application (app.py)
+Run the web-based Streamlit application:
+```
 streamlit run app.py
 ```
 
-## 📁 **Project Structure**
-```
-├── app.py                    # Main Streamlit application
-├── requirements.txt          # Python dependencies
-├── secret_user_info/         # Target password file
-├── small-password-list/      # Common passwords for testing
-└── src/                      # Original desktop version
-```
+Features:
+- Web-based interface accessible via browser
+- Real-time attack simulation
+- Password strength analysis
+- Educational demonstrations
+- Responsive design
 
-## 🔒 **Security Note**
+## Security Note
 This tool is for educational purposes only. Do not use for unauthorized access attempts.
