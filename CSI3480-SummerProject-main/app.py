@@ -761,6 +761,28 @@ def main(enable_2fa: bool, target_password: str = None, attack_method: str = "di
 st.set_page_config(page_title="Brute Force Demo", page_icon="🔓", layout="wide")
 st.title("🔓 Brute Force Attack Simulator")
 
+# Minimal animated background (dark gradient)
+st.markdown(
+    """
+    <style>
+    [data-testid="stAppViewContainer"] {
+        background: linear-gradient(120deg, #0b0f14 0%, #0d1b2a 50%, #0b0f14 100%);
+        background-size: 200% 200%;
+        animation: gradientMove 18s ease-in-out infinite;
+    }
+    @keyframes gradientMove {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+    /* Make inner containers transparent to reveal background */
+    .block-container { background: transparent; }
+    [data-testid="stHeader"], [data-testid="stToolbar"] { background: rgba(0,0,0,0); }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # Generate random 4-digit 2FA code
 if "twofa_code" not in st.session_state:
     st.session_state.twofa_code = str(random.randint(1000, 9999))
