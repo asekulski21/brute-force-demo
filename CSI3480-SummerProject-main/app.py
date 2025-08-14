@@ -15,6 +15,9 @@ import streamlit as st
 import re
 import string
 from collections import Counter
+import plotly.graph_objects as go
+import plotly.express as px
+import numpy as np
 
 # Constants
 COMMON_PASSWORD_LIST = "small-password-list/smallpasswordlist.txt"
@@ -413,6 +416,133 @@ def get_target(filename: str) -> str:
     """Legacy function - now returns embedded data"""
     return get_target_password()
 
+def create_attack_complexity_graph():
+    """Create an interactive graph showing time complexity of different attack methods"""
+    
+    # Generate data for different password lengths
+    password_lengths = np.arange(1, 9)  # 1 to 8 characters
+    
+    # Dictionary attack complexity (linear - O(n) where n is dictionary size)
+    # Assuming dictionary size grows linearly with password length
+    dict_complexity = password_lengths * 100  # Simplified model
+    
+    # Incremental attack complexity (exponential - O(c^n) where c is character set size)
+    char_set_size = 36  # a-z + 0-9
+    incremental_complexity = char_set_size ** password_lengths
+    
+    # Create the figure
+    fig = go.Figure()
+    
+    # Add dictionary attack line
+    fig.add_trace(go.Scatter(
+        x=password_lengths,
+        y=dict_complexity,
+        mode='lines+markers',
+        name='Dictionary Attack',
+        line=dict(color='#1f77b4', width=3),
+        marker=dict(size=8),
+        hovertemplate='<b>Dictionary Attack</b><br>' +
+                     'Password Length: %{x}<br>' +
+                     'Complexity: %{y:,.0f}<br>' +
+                     'Time Complexity: O(n)<extra></extra>'
+    ))
+    
+    # Add incremental attack line
+    fig.add_trace(go.Scatter(
+        x=password_lengths,
+        y=incremental_complexity,
+        mode='lines+markers',
+        name='Incremental Attack',
+        line=dict(color='#ff7f0e', width=3),
+        marker=dict(size=8),
+        hovertemplate='<b>Incremental Attack</b><br>' +
+                     'Password Length: %{x}<br>' +
+                     'Complexity: %{y:,.0f}<br>' +
+                     'Time Complexity: O(c^n)<extra></extra>'
+    ))
+    
+    # Update layout
+    fig.update_layout(
+        title={
+            'text': 'Attack Method Time Complexity Comparison',
+            'x': 0.5,
+            'xanchor': 'center',
+            'font': {'size': 16, 'color': 'white'}
+        },
+        xaxis_title='Password Length (characters)',
+        yaxis_title='Computational Complexity (log scale)',
+        yaxis_type='log',
+        yaxis=dict(
+            gridcolor='rgba(255,255,255,0.1)',
+            zerolinecolor='rgba(255,255,255,0.1)',
+            title_font_color='white',
+            tickfont_color='white'
+        ),
+        xaxis=dict(
+            gridcolor='rgba(255,255,255,0.1)',
+            zerolinecolor='rgba(255,255,255,0.1)',
+            title_font_color='white',
+            tickfont_color='white'
+        ),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(color='white'),
+        legend=dict(
+            bgcolor='rgba(0,0,0,0.5)',
+            bordercolor='rgba(255,255,255,0.2)',
+            borderwidth=1,
+            font=dict(color='white')
+        ),
+        margin=dict(l=50, r=50, t=80, b=50),
+        height=400
+    )
+    
+    return fig
+
+def create_password_strength_distribution():
+    """Create a graph showing password strength distribution in the dictionary"""
+    
+    # Get password list and analyze strength of each
+    password_list = get_password_list()
+    strength_scores = []
+    
+    # Sample passwords for performance (analyze first 100)
+    sample_passwords = password_list[:100]
+    
+    for password in sample_passwords:
+        analysis = analyze_password_strength(password)
+        strength_scores.append(analysis['score'])
+    
+    # Create histogram
+    fig = px.histogram(
+        x=strength_scores,
+        nbins=10,
+        title='Password Strength Distribution (Sample of 100)',
+        labels={'x': 'Strength Score', 'y': 'Number of Passwords'},
+        color_discrete_sequence=['#00ff88']
+    )
+    
+    # Update layout for dark theme
+    fig.update_layout(
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(color='white'),
+        title_font_color='white',
+        xaxis=dict(
+            gridcolor='rgba(255,255,255,0.1)',
+            title_font_color='white',
+            tickfont_color='white'
+        ),
+        yaxis=dict(
+            gridcolor='rgba(255,255,255,0.1)',
+            title_font_color='white',
+            tickfont_color='white'
+        ),
+        height=300
+    )
+    
+    return fig
+
 
 
 def main(enable_2fa: bool, target_password: str = None, attack_method: str = "dictionary"):
@@ -617,179 +747,240 @@ def main(enable_2fa: bool, target_password: str = None, attack_method: str = "di
                 st.rerun()
 
 # Streamlit UI
-st.set_page_config(page_title="Brute Force Demo", page_icon="🔓")
+st.set_page_config(page_title="Brute Force Demo", page_icon="🔓", layout="wide")
 st.title("🔓 Brute Force Attack Simulator")
 
 # Generate random 4-digit 2FA code
 if "twofa_code" not in st.session_state:
     st.session_state.twofa_code = str(random.randint(1000, 9999))
 
-# Password selection
-st.write("**🎯 Select Target Password:**")
-password_options = get_password_selection_options()
+# Create main layout with two columns
+main_col, graph_col = st.columns([2, 1])
 
-# Create two columns for password selection
-col1, col2 = st.columns([2, 1])
+with main_col:
+    # Password selection
+    st.write("**🎯 Select Target Password:**")
+    password_options = get_password_selection_options()
 
-with col1:
-    password_choice = st.selectbox(
-        "Choose password difficulty:",
-        list(password_options.keys()),
-        help="Select from predefined difficulty levels or choose a custom password"
-    )
+    # Create two columns for password selection
+    col1, col2 = st.columns([2, 1])
 
-with col2:
-    if password_choice == "Custom Selection":
-        password_list = get_password_list()
-        custom_index = st.number_input(
-            "Select password index (0-2024):",
-            min_value=0,
-            max_value=len(password_list)-1,
-            value=0,
-            help=f"Choose any password from the list of {len(password_list)} passwords"
+    with col1:
+        password_choice = st.selectbox(
+            "Choose password difficulty:",
+            list(password_options.keys()),
+            help="Select from predefined difficulty levels or choose a custom password"
         )
-        target_password = password_list[custom_index]
-        position = custom_index + 1
-        st.info(f"Selected: `{target_password}`")
-        st.write(f"📍 Position: {position}/{len(password_list)}")
-    else:
-        target_password = password_options[password_choice]
-        password_list = get_password_list()
-        try:
-            position = password_list.index(target_password) + 1
+
+    with col2:
+        if password_choice == "Custom Selection":
+            password_list = get_password_list()
+            custom_index = st.number_input(
+                "Select password index (0-2024):",
+                min_value=0,
+                max_value=len(password_list)-1,
+                value=0,
+                help=f"Choose any password from the list of {len(password_list)} passwords"
+            )
+            target_password = password_list[custom_index]
+            position = custom_index + 1
             st.info(f"Selected: `{target_password}`")
             st.write(f"📍 Position: {position}/{len(password_list)}")
-        except ValueError:
-            st.info(f"Selected: `{target_password}`")
-            st.write("📍 Position: Not in list (very hard)")
+        else:
+            target_password = password_options[password_choice]
+            password_list = get_password_list()
+            try:
+                position = password_list.index(target_password) + 1
+                st.info(f"Selected: `{target_password}`")
+                st.write(f"📍 Position: {position}/{len(password_list)}")
+            except ValueError:
+                st.info(f"Selected: `{target_password}`")
+                st.write("📍 Position: Not in list (very hard)")
 
-# Password Strength Analyzer
-st.write("**🔍 Password Strength Analysis:**")
-strength_analysis = analyze_password_strength(target_password)
+    # Password Strength Analyzer
+    st.write("**🔍 Password Strength Analysis:**")
+    strength_analysis = analyze_password_strength(target_password)
 
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.metric("Strength", strength_analysis["strength"])
-with col2:
-    st.metric("Score", strength_analysis["score"])
-with col3:
-    st.metric("Entropy", strength_analysis["entropy"])
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Strength", strength_analysis["strength"])
+    with col2:
+        st.metric("Score", strength_analysis["score"])
+    with col3:
+        st.metric("Entropy", strength_analysis["entropy"])
 
-# Character type indicators
-char_col1, char_col2, char_col3, char_col4 = st.columns(4)
-with char_col1:
-    st.write(f"**Lowercase:** {'✅' if strength_analysis['has_lower'] else '❌'}")
-with char_col2:
-    st.write(f"**Uppercase:** {'✅' if strength_analysis['has_upper'] else '❌'}")
-with char_col3:
-    st.write(f"**Digits:** {'✅' if strength_analysis['has_digit'] else '❌'}")
-with char_col4:
-    st.write(f"**Special:** {'✅' if strength_analysis['has_special'] else '❌'}")
+    # Character type indicators
+    char_col1, char_col2, char_col3, char_col4 = st.columns(4)
+    with char_col1:
+        st.write(f"**Lowercase:** {'✅' if strength_analysis['has_lower'] else '❌'}")
+    with char_col2:
+        st.write(f"**Uppercase:** {'✅' if strength_analysis['has_upper'] else '❌'}")
+    with char_col3:
+        st.write(f"**Digits:** {'✅' if strength_analysis['has_digit'] else '❌'}")
+    with char_col4:
+        st.write(f"**Special:** {'✅' if strength_analysis['has_special'] else '❌'}")
 
-# Detailed feedback
-with st.expander("📊 Detailed Analysis"):
-    for feedback in strength_analysis["feedback"]:
-        st.write(feedback)
+    # Detailed feedback
+    with st.expander("📊 Detailed Analysis"):
+        for feedback in strength_analysis["feedback"]:
+            st.write(feedback)
 
-# Attack Method Selection
-st.write("**⚔️ Attack Method:**")
-attack_method = st.selectbox(
-    "Choose attack method:",
-    ["dictionary", "incremental"],
-    format_func=lambda x: x.title(),
-    help="Dictionary: Tests against common passwords (faster)\nIncremental: Tests all combinations up to 4 characters (slower but more thorough)"
-)
+    # Attack Method Selection
+    st.write("**⚔️ Attack Method:**")
+    attack_method = st.selectbox(
+        "Choose attack method:",
+        ["dictionary", "incremental"],
+        format_func=lambda x: x.title(),
+        help="Dictionary: Tests against common passwords (faster)\nIncremental: Tests all combinations up to 4 characters (slower but more thorough)"
+    )
 
-# Show attack method info
-if attack_method == "dictionary":
-    password_list = get_password_list()
-    st.info(f"📋 **Dictionary Attack:** Testing against {len(password_list)} common passwords")
-elif attack_method == "incremental":
-    incremental_list = generate_incremental_passwords(4)
-    st.info(f"📋 **Incremental Attack:** Testing all combinations up to 4 characters ({len(incremental_list)} total)")
-
-# Show password list info
-with st.expander("📋 Password List Information"):
+    # Show attack method info
     if attack_method == "dictionary":
         password_list = get_password_list()
-        st.write(f"**Total passwords available:** {len(password_list)}")
-        st.write("**Sample passwords:**")
-        st.code(f"First: {password_list[0]}\nMiddle: {password_list[len(password_list)//2]}\nLast: {password_list[-1]}")
-    else:
+        st.info(f"📋 **Dictionary Attack:** Testing against {len(password_list)} common passwords")
+    elif attack_method == "incremental":
         incremental_list = generate_incremental_passwords(4)
-        st.write(f"**Total combinations:** {len(incremental_list)}")
-        st.write("**Character set:** a-z, 0-9 (36 characters)")
-        st.write("**Sample combinations:**")
-        st.code(f"1 char: {incremental_list[0]}, {incremental_list[10]}, {incremental_list[35]}\n2 chars: {incremental_list[36]}, {incremental_list[100]}, {incremental_list[500]}\n3 chars: {incremental_list[1296]}, {incremental_list[2000]}, {incremental_list[3000]}")
+        st.info(f"📋 **Incremental Attack:** Testing all combinations up to 4 characters ({len(incremental_list)} total)")
 
-# Simple configuration
-enable_2fa = st.checkbox("🔐 Enable 2FA Protection")
-if enable_2fa:
-    st.info(f"🔒 You will need to enter the 2FA code: **{st.session_state.twofa_code}**")
-
-# Session state for flow
-st.session_state.setdefault("attack_requested", False)
-st.session_state.setdefault("authenticated", False)
-st.session_state.setdefault("twofa_error", "")
-st.session_state.setdefault("attack_started", False)
-st.session_state.setdefault("attack_paused", False)
-st.session_state.setdefault("attack_finished", False)
-
-# Attack control buttons
-col1, col2, col3, col4 = st.columns(4)
-
-with col1:
-    if st.button("🎯 Start Brute Force Attack", type="primary", disabled=st.session_state.attack_started and not st.session_state.attack_paused and not st.session_state.attack_finished):
-        st.session_state.attack_requested = True
-        st.session_state.attack_paused = False
-        st.session_state.attack_finished = False
-        st.session_state.twofa_error = ""
-
-with col2:
-    if st.button("⏸️ Pause Attack", disabled=not st.session_state.attack_started or st.session_state.attack_paused or st.session_state.attack_finished):
-        st.session_state.attack_paused = True
-
-with col3:
-    if st.button("⏹️ Finish Attack", disabled=not st.session_state.attack_started or st.session_state.attack_finished):
-        st.session_state.attack_finished = True
-        st.session_state.attack_paused = True
-
-with col4:
-    if st.button("🔄 Reset Attack", disabled=not st.session_state.attack_started):
-        st.session_state.attack_started = False
-        st.session_state.attack_requested = False
-        st.session_state.attack_paused = False
-        st.session_state.attack_finished = False
-        st.session_state.authenticated = False
-        st.session_state.attempt_index = 0
-        st.session_state.twofa_error = ""
-        st.rerun()
-
-# If user requested an attack and 2FA is enabled but not authenticated, prompt now
-if st.session_state.attack_requested and enable_2fa and not st.session_state.authenticated:
-    st.warning("🔐 **2FA Required**")
-    st.info(f"Enter the 2FA code: **{st.session_state.twofa_code}**")
-
-    twofa_input = st.text_input("2FA Code:", type="password", key="twofa_input")
-    if st.button("Authenticate"):
-        if twofa_input == st.session_state.twofa_code:
-            st.session_state.authenticated = True
+    # Show password list info
+    with st.expander("📋 Password List Information"):
+        if attack_method == "dictionary":
+            password_list = get_password_list()
+            st.write(f"**Total passwords available:** {len(password_list)}")
+            st.write("**Sample passwords:**")
+            st.code(f"First: {password_list[0]}\nMiddle: {password_list[len(password_list)//2]}\nLast: {password_list[-1]}")
         else:
-            st.session_state.twofa_error = f"Wrong code! Enter {st.session_state.twofa_code}"
+            incremental_list = generate_incremental_passwords(4)
+            st.write(f"**Total combinations:** {len(incremental_list)}")
+            st.write("**Character set:** a-z, 0-9 (36 characters)")
+            st.write("**Sample combinations:**")
+            st.code(f"1 char: {incremental_list[0]}, {incremental_list[10]}, {incremental_list[35]}\n2 chars: {incremental_list[36]}, {incremental_list[100]}, {incremental_list[500]}\n3 chars: {incremental_list[1296]}, {incremental_list[2000]}, {incremental_list[3000]}")
 
-    if st.session_state.twofa_error:
-        st.error(st.session_state.twofa_error)
+    # Simple configuration
+    enable_2fa = st.checkbox("🔐 Enable 2FA Protection")
+    if enable_2fa:
+        st.info(f"🔒 You will need to enter the 2FA code: **{st.session_state.twofa_code}**")
 
-# If attack was requested and (2FA passed or disabled), run the attack
-if st.session_state.attack_requested and (not enable_2fa or st.session_state.authenticated):
-    # Start or continue the step-by-step attack
-    if not st.session_state.attack_started:
-        # Initialize attack state
-        st.session_state.attack_started = True
-        st.session_state.start_time = time.time()
-        st.session_state.attempt_index = 0
-        st.session_state.attack_paused = False
-        st.session_state.attack_finished = False
+    # Session state for flow
+    st.session_state.setdefault("attack_requested", False)
+    st.session_state.setdefault("authenticated", False)
+    st.session_state.setdefault("twofa_error", "")
+    st.session_state.setdefault("attack_started", False)
+    st.session_state.setdefault("attack_paused", False)
+    st.session_state.setdefault("attack_finished", False)
+
+    # Attack control buttons
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        if st.button("🎯 Start Brute Force Attack", type="primary", disabled=st.session_state.attack_started and not st.session_state.attack_paused and not st.session_state.attack_finished):
+            st.session_state.attack_requested = True
+            st.session_state.attack_paused = False
+            st.session_state.attack_finished = False
+            st.session_state.twofa_error = ""
+
+    with col2:
+        if st.button("⏸️ Pause Attack", disabled=not st.session_state.attack_started or st.session_state.attack_paused or st.session_state.attack_finished):
+            st.session_state.attack_paused = True
+
+    with col3:
+        if st.button("⏹️ Finish Attack", disabled=not st.session_state.attack_started or st.session_state.attack_finished):
+            st.session_state.attack_finished = True
+            st.session_state.attack_paused = True
+
+    with col4:
+        if st.button("🔄 Reset Attack", disabled=not st.session_state.attack_started):
+            st.session_state.attack_started = False
+            st.session_state.attack_requested = False
+            st.session_state.attack_paused = False
+            st.session_state.attack_finished = False
+            st.session_state.authenticated = False
+            st.session_state.attempt_index = 0
+            st.session_state.twofa_error = ""
+            st.rerun()
+
+    # If user requested an attack and 2FA is enabled but not authenticated, prompt now
+    if st.session_state.attack_requested and enable_2fa and not st.session_state.authenticated:
+        st.warning("🔐 **2FA Required**")
+        st.info(f"Enter the 2FA code: **{st.session_state.twofa_code}**")
+
+        twofa_input = st.text_input("2FA Code:", type="password", key="twofa_input")
+        if st.button("Authenticate"):
+            if twofa_input == st.session_state.twofa_code:
+                st.session_state.authenticated = True
+            else:
+                st.session_state.twofa_error = f"Wrong code! Enter {st.session_state.twofa_code}"
+
+        if st.session_state.twofa_error:
+            st.error(st.session_state.twofa_error)
+
+    # If attack was requested and (2FA passed or disabled), run the attack
+    if st.session_state.attack_requested and (not enable_2fa or st.session_state.authenticated):
+        # Start or continue the step-by-step attack
+        if not st.session_state.attack_started:
+            # Initialize attack state
+            st.session_state.attack_started = True
+            st.session_state.start_time = time.time()
+            st.session_state.attempt_index = 0
+            st.session_state.attack_paused = False
+            st.session_state.attack_finished = False
+        
+
+        main(enable_2fa, target_password, attack_method)
+
+# Right column - Interactive Graphs
+with graph_col:
+    st.write("**📊 Attack Complexity Analysis**")
     
-
-    main(enable_2fa, target_password, attack_method)
+    # Create and display the attack complexity graph
+    complexity_fig = create_attack_complexity_graph()
+    st.plotly_chart(complexity_fig, use_container_width=True)
+    
+    # Add educational information
+    with st.expander("ℹ️ About Attack Complexity"):
+        st.write("""
+        **Dictionary Attack (O(n)):**
+        - Linear time complexity
+        - Tests against a predefined list of common passwords
+        - Fast but limited to known passwords
+        
+        **Incremental Attack (O(c^n)):**
+        - Exponential time complexity
+        - Tests all possible character combinations
+        - Slower but more thorough
+        - c = character set size (36 for a-z, 0-9)
+        - n = password length
+        """)
+    
+    # Create and display password strength distribution
+    st.write("**📈 Password Strength Distribution**")
+    strength_fig = create_password_strength_distribution()
+    st.plotly_chart(strength_fig, use_container_width=True)
+    
+    # Add real-time attack statistics
+    if st.session_state.get("attack_started", False):
+        st.write("**⚡ Real-time Statistics**")
+        
+        if st.session_state.get("attempt_index", 0) > 0:
+            elapsed_time = time.time() - st.session_state.get("start_time", time.time())
+            attempts = st.session_state.get("attempt_index", 0)
+            
+            if elapsed_time > 0:
+                speed = attempts / elapsed_time
+                st.metric("Current Speed", f"{speed:.1f} pwd/sec")
+                st.metric("Total Attempts", attempts)
+                st.metric("Elapsed Time", f"{elapsed_time:.1f}s")
+                
+                # Estimate time to complete
+                if attack_method == "dictionary":
+                    total_passwords = len(get_password_list())
+                    remaining = total_passwords - attempts
+                    if speed > 0:
+                        eta = remaining / speed
+                        st.metric("ETA", f"{eta:.1f}s")
+                else:
+                    total_combinations = len(generate_incremental_passwords(4))
+                    remaining = total_combinations - attempts
+                    if speed > 0:
+                        eta = remaining / speed
+                        st.metric("ETA", f"{eta:.1f}s")
